@@ -130,3 +130,23 @@ def test_graph_mst_mode_runs_full_simulation_and_records_route_events() -> None:
     events = set(result.events["event"].tolist()) if not result.events.empty else set()
     assert "target_confirmed" in events
     assert "target_routed" in events
+
+
+def test_run_experiments_parser_accepts_graph_mst_mode() -> None:
+    from cleanup_sim.run_experiments import build_parser as build_experiments_parser
+
+    args = build_experiments_parser().parse_args(["--modes", "graph_mst"])
+    assert args.modes == ["graph_mst"]
+
+
+def test_run_once_parser_accepts_graph_mst_mode() -> None:
+    from cleanup_sim.run_once import build_parser as build_once_parser
+
+    args = build_once_parser().parse_args(["--mode", "graph_mst"])
+    assert args.mode == "graph_mst"
+
+
+def test_graph_mst_excluded_from_default_experiment_modes() -> None:
+    from cleanup_sim.run_experiments import DEFAULT_MODES
+
+    assert "graph_mst" not in DEFAULT_MODES

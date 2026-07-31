@@ -25,6 +25,7 @@ MODE_CHOICES: list[PlannerMode] = [
     "active_no_distance",
     "active",
     "detected_tsp",
+    "graph_mst",
     "hybrid",
 ]
 DEFAULT_MODES: list[PlannerMode] = [
