@@ -106,3 +106,27 @@ def test_choose_next_goal_falls_back_to_lawnmower_without_confirmed_targets() ->
 
     assert label == "coverage"
     assert np.allclose(goal, route[0])
+
+
+from cleanup_sim.planners import should_invalidate_graph_route
+from cleanup_sim.simulation import run_simulation
+
+
+def test_should_invalidate_graph_route_only_for_graph_mst_route_with_new_confirmations() -> None:
+    assert should_invalidate_graph_route("graph_mst", "route", [object()]) is True
+    assert should_invalidate_graph_route("graph_mst", "route", []) is False
+    assert should_invalidate_graph_route("graph_mst", "coverage", [object()]) is False
+    assert should_invalidate_graph_route("detected_tsp", "route", [object()]) is False
+
+
+def test_graph_mst_mode_runs_full_simulation_and_records_route_events() -> None:
+    cfg = scenario_config("clustered_base", 4, "graph_mst")
+    cfg = replace(cfg, robot=replace(cfg.robot, tmax_s=1200.0))
+    result = run_simulation(cfg)
+
+    assert result.summary["mode"] == "graph_mst"
+    assert np.all(result.belief >= 0.0)
+    assert np.all(result.belief <= 1.0)
+    events = set(result.events["event"].tolist()) if not result.events.empty else set()
+    assert "target_confirmed" in events
+    assert "target_routed" in events

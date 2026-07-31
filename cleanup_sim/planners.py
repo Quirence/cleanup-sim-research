@@ -285,3 +285,7 @@ def pop_arrived_route_goal(
         if target_queue is not None and remove_radius_m is not None:
             target_queue.remove_near(state.current_route[0], remove_radius_m)
         state.current_route.pop(0)
+
+
+def should_invalidate_graph_route(mode: str, current_planner_mode: str, confirmations: list) -> bool:
+    return mode == "graph_mst" and current_planner_mode == "route" and bool(confirmations)
