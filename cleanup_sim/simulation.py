@@ -62,6 +62,16 @@ def _step_toward(pos: np.ndarray, goal: np.ndarray, speed: float, dt: float) -> 
     return pos + vec * (step / dist), step, step >= dist - 1e-9
 
 
+def _collected_near_goal(collected_events: list[dict], goal: np.ndarray | None, radius_m: float) -> bool:
+    if goal is None:
+        return False
+    for event in collected_events:
+        event_pos = np.array([event["x"], event["y"]], dtype=float)
+        if np.linalg.norm(event_pos - goal) <= radius_m:
+            return True
+    return False
+
+
 def run_simulation(config: RunConfig) -> SimulationResult:
     rng = np.random.default_rng(config.seed)
     field = make_debris_field(rng, config.world)
@@ -74,6 +84,7 @@ def run_simulation(config: RunConfig) -> SimulationResult:
         confirm_prob=config.planner.detected_confirm_prob,
         confirm_hits=config.planner.target_confirm_hits,
         nms_radius_m=config.planner.detected_nms_radius_m,
+        min_sensor_types=config.planner.target_min_sensor_types,
     )
     pos = np.array(config.world.depot, dtype=float)
     heading = 0.0
@@ -87,6 +98,7 @@ def run_simulation(config: RunConfig) -> SimulationResult:
     bin_load = 0.0
     current_goal: np.ndarray | None = None
     current_planner_mode = "init"
+    route_goal_collected = False
     total_path_m = 0.0
     last_sensor_update_t = -1e9
     ts = TimeSeries(time_s=[], path_m=[], collected=[], false_visits=[], planner_mode=[])
@@ -121,6 +133,8 @@ def run_simulation(config: RunConfig) -> SimulationResult:
 
         collected_events, bin_load = _collect_nearby(field, pos, config.robot.collect_radius_m, bin_load)
         collected_this_tick = len(collected_events)
+        if current_planner_mode == "route" and _collected_near_goal(collected_events, current_goal, config.robot.collect_radius_m):
+            route_goal_collected = True
         for event in collected_events:
             event["time_s"] = t
             events.append(event)
@@ -142,12 +156,14 @@ def run_simulation(config: RunConfig) -> SimulationResult:
             if current_goal is not None and np.linalg.norm(current_goal - pos) <= config.robot.collect_radius_m:
                 collected_events, bin_load = _collect_nearby(field, pos, config.robot.collect_radius_m, bin_load)
                 collected_this_tick += len(collected_events)
+                if current_planner_mode == "route" and _collected_near_goal(collected_events, current_goal, config.robot.collect_radius_m):
+                    route_goal_collected = True
                 for event in collected_events:
                     event["time_s"] = t
                     events.append(event)
                 if arrived_route_goal:
                     target_route_attempts += 1
-                    if collected_this_tick > 0:
+                    if collected_this_tick > 0 or route_goal_collected:
                         target_visit_successes += 1
                         target_queue.remove_near(pos, config.robot.collect_radius_m)
                         events.append({"time_s": t, "event": "target_visit_success", "x": float(pos[0]), "y": float(pos[1])})
@@ -179,12 +195,15 @@ def run_simulation(config: RunConfig) -> SimulationResult:
                 target_queue=target_queue,
             )
             if current_planner_mode == "route":
+                route_goal_collected = False
                 events.append({
                     "time_s": t,
                     "event": "target_routed",
                     "x": float(current_goal[0]),
                     "y": float(current_goal[1]),
                 })
+            else:
+                route_goal_collected = False
 
         new_pos, step_m, _ = _step_toward(pos, current_goal, config.robot.speed_mps, config.robot.dt_s)
         if step_m > 0:

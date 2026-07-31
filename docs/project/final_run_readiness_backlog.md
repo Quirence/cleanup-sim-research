@@ -29,6 +29,20 @@
 - Научное следствие: дальнейший pre-final/final прогон должен использовать `hybrid_final_v1` без дополнительной подгонки параметров по финальным seed.
 - Дополнительно закрыт мертвый параметр `hybrid_switch_prob`: он удален из `PlannerConfig` и тестов, чтобы таблица параметров статьи не содержала неиспользуемую настройку.
 - Объединенный post-P0 smoke `3 scenarios x 2 seeds`, `max_path_m=3000`, `tmax_s=6000` сохранен в `out/audit/p0_all_closed_confirmatory_smoke_2seed`; он диагностический, не финальный.
+- `P1-01` закрыт кодом: `paired_comparisons.csv` теперь содержит paired sign-flip permutation p-value как основное `p_value`, diagnostic `p_normal_approx`, Holm correction, `cohen_dz` и `rank_biserial`.
+- `P1-02` закрыт кодом: threshold metrics больше не исчезают молча; paired comparison rows содержат `paired_total`, `mode_a_reach_rate`, `mode_b_reach_rate`, `censored_pairs`, а `aggregate_mean_std.csv` содержит `*_reach_rate` и `*_reached`.
+- Проверка после закрытия `P1-01/P1-02`: `python -m pytest -q` -> `47 passed`; smoke сохранен в `out/audit/p1_stats_smoke_2seed`.
+- `P1-03` закрыт кодом: FOV-слагаемые active score умножаются на `cell_area / active_reference_cell_area_m2`, поэтому масштаб utility сохраняется на базовой сетке `2 x 2 м` и становится устойчивее к изменению разрешения.
+- Проверка после закрытия `P1-03`: `python -m pytest -q` -> `48 passed`; добавлен regression-тест на близость score для `100x100` и `50x50` сеток.
+- `P1-04` закрыт кодом и диагностикой: route-цели теперь требуют мультисенсорного подтверждения (`target_min_sensor_types = 2`), а route success учитывает сбор цели по пути рядом с routed point, не только в тик формального прибытия.
+- Проверка после закрытия `P1-04`: `python -m pytest -q` -> `50 passed`; smoke `out/audit/p1_target_precision_smoke_v2_2seed` показал рост target precision route-режимов примерно до `0.28-0.51` вместо прежних `0.06-0.13` при снижении false visits.
+- Научное следствие: новая route-логика делает planner консервативнее; старые post-P0 route-результаты снова считать историческими.
+- `P1-05/P1-06` закрыты на уровне инструментария: `run_sensitivity` теперь запускает OFAT вокруг `hybrid_final_v1`, поддерживает `robot` cases для `collect_radius_m`, `bin_capacity_kg`, `speed_mps` и флаг `--components robot`.
+- Проверка после закрытия `P1-05/P1-06`: `python -m pytest -q` -> `51 passed`; smoke сохранены в `out/audit/p1_physical_sensitivity_smoke` и `out/audit/p1_physical_only_sensitivity_smoke`.
+- Научное следствие: финальная статья должна сопровождать основной 30-seed прогон отдельной физической sensitivity-серией; smoke уже показывает сильную зависимость результата от `collect_radius_m`.
+- `P1-07` закрыт документационно: создан `docs/project/platform_sensor_parameter_notes.md` с границами интерпретации USV-параметров, camera/radar abstraction и ссылками на платформы/сенсоры-ориентиры.
+- `P1-08` частично закрыт диагностикой: выполнен pre-final 5-seed smoke после P1-ремонта, все 105 запусков дошли до `path_budget`; результаты сохранены в `out/audit/p1_prefinal_confirmatory_smoke_5seed` и описаны в `docs/article/results/p1_prefinal_confirmatory_smoke_5seed.md`.
+- Важный вывод P1-08: финальный 30-seed прогон пока не запускать, потому что `hybrid_final_v1` не является универсальным победителем и требуется согласовать научную интерпретацию.
 
 ## P0: блокеры финального прогона
 
@@ -45,14 +59,14 @@
 
 | ID | Severity | Слой | Проблема | Evidence | Impact | Fix | Acceptance |
 |---|---|---|---|---|---|---|---|
-| P1-01 | Major | statistics | normal approximation p-value | `statistics.py:61-70` | p-values могут быть антиконсервативны, особенно на pilot | добавить Wilcoxon signed-rank или permutation test; оставить normal только diagnostic | `paired_comparisons.csv` содержит Wilcoxon/permutation p-value и Holm |
-| P1-02 | Major | statistics | NaN threshold metrics молча удаляются | `paired_differences(...).dropna()` | теряется информация о недостижении 80/95% | добавить reach-rate и censored handling | финальные таблицы показывают долю seed, достигших порога |
-| P1-03 | Major | science/algorithm | active-score не нормирован | `_score_candidate` суммирует по FOV | веса зависят от сетки/FOV | нормировать или добавить grid sensitivity | есть smoke/sensitivity по `50x50/100x100/200x200` либо честное ограничение |
-| P1-04 | Major | targets | target precision низкий | smoke: `target_precision` около `0.06-0.14` для route modes | hybrid может тратить путь на ложные цели | усилить confirmation, suppression, stale policy; добавить sensitivity | target precision и false visits интерпретируемы; false visits не доминируют путь |
-| P1-05 | Major | physics | мгновенный сбор радиусом `5 м` | `_collect_nearby`, `collect_radius_m=5` | завышает эффективность всех стратегий | sensitivity по radius; dwell-time или aperture model | финальные результаты сопровождаются physical sensitivity |
-| P1-06 | Major | physics | `30 кг` capacity конфликтует с research-USV | BlueBoat/Heron payload меньше | некорректный образ платформы | выбрать reference class или sensitivity `10/30/60 кг` | в статье есть таблица параметров с источниками |
-| P1-07 | Major | sensors | camera/radar - абстракция, не real CV/radar | RealSense depth range 0.3-3м; модель camera 28м | риск завышенного заявления | описать visual detector abstraction; radar detection как probabilistic assumption | текст не заявляет реализованную CV/radar детекцию |
-| P1-08 | Major | science | нет final 30-seed run | текущие данные pilot/smoke | нет статистической базы | после P0/P1 smoke запустить final 30-seed | `summary.csv`, `aggregate`, `paired`, figures для final run существуют |
+| P1-01 | Closed | statistics | normal approximation p-value | `statistics.py:61-70` | p-values могут быть антиконсервативны, особенно на pilot | добавить Wilcoxon signed-rank или permutation test; оставить normal только diagnostic | закрыто: primary `p_value = p_permutation`, есть `p_normal_approx`, effect sizes и Holm |
+| P1-02 | Closed | statistics | NaN threshold metrics молча удаляются | `paired_differences(...).dropna()` | теряется информация о недостижении 80/95% | добавить reach-rate и censored handling | закрыто: paired/aggregate tables содержат reach-rate и censored counts |
+| P1-03 | Closed | science/algorithm | active-score не нормирован | `_score_candidate` суммирует по FOV | веса зависят от сетки/FOV | нормировать или добавить grid sensitivity | закрыто: area-normalized FOV terms + grid-resolution regression test |
+| P1-04 | Closed | targets | target precision низкий | smoke: `target_precision` около `0.06-0.14` для route modes | hybrid может тратить путь на ложные цели | усилить confirmation, suppression, stale policy; добавить sensitivity | закрыто: multisensor confirmation + en-route success accounting; target precision smoke около `0.28-0.51` |
+| P1-05 | Closed | physics | мгновенный сбор радиусом `5 м` | `_collect_nearby`, `collect_radius_m=5` | завышает эффективность всех стратегий | sensitivity по radius; dwell-time или aperture model | закрыто инструментально: `collect_radius_m=2.5` robot sensitivity; финальную серию еще запустить |
+| P1-06 | Closed | physics | `30 кг` capacity конфликтует с research-USV | BlueBoat/Heron payload меньше | некорректный образ платформы | выбрать reference class или sensitivity `10/30/60 кг` | закрыто инструментально: `bin_capacity_kg=10/60` и `speed_mps=1/1.5` sensitivity; таблица источников нужна в статье |
+| P1-07 | Closed | sensors | camera/radar - абстракция, не real CV/radar | RealSense depth range 0.3-3м; модель camera 28м | риск завышенного заявления | описать visual detector abstraction; radar detection как probabilistic assumption | закрыто: `platform_sensor_parameter_notes.md` фиксирует границы заявлений |
+| P1-08 | Pending | science | нет final 30-seed run | текущие данные pilot/smoke | нет статистической базы | после согласования интерпретации pre-final smoke запустить final 30-seed | pre-final smoke есть; final `summary.csv`, `aggregate`, `paired`, figures еще не созданы |
 
 ## P2: улучшения для ВАК-уровня
 

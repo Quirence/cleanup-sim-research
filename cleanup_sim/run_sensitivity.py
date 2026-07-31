@@ -37,6 +37,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scenarios", nargs="*", choices=DEFAULT_SCENARIOS, default=DEFAULT_SCENARIOS)
     parser.add_argument("--tmax-s", type=float, default=None, help="Optional simulation time limit override.")
     parser.add_argument("--max-path-m", type=float, default=6000.0, help="Optional path budget override.")
+    parser.add_argument(
+        "--components",
+        nargs="*",
+        choices=["planner", "robot"],
+        default=None,
+        help="Optional sensitivity components to run. Baseline is always included.",
+    )
     parser.add_argument("--save-runs", action="store_true", help="Save per-run events, series, maps and configs.")
     return parser
 
@@ -48,6 +55,9 @@ def main() -> None:
 
     baseline_planner = scenario_config("clustered_base", 0, "hybrid").planner
     cases = iter_sensitivity_cases(baseline_planner)
+    if args.components is not None:
+        wanted = set(args.components) | {"baseline"}
+        cases = [case for case in cases if case.component in wanted]
     summaries = []
     _write_tables(out_dir, cases, summaries)
 
@@ -63,6 +73,7 @@ def main() -> None:
                 result = run_simulation(cfg)
                 summary = dict(result.summary)
                 summary["sensitivity_case"] = case.name
+                summary["sensitivity_component"] = case.component
                 summary["sensitivity_parameter"] = case.parameter or "baseline"
                 summary["sensitivity_value"] = case.value
                 summaries.append(summary)
@@ -94,8 +105,9 @@ def main() -> None:
                 "scenarios": args.scenarios,
                 "tmax_s": args.tmax_s,
                 "max_path_m": args.max_path_m,
+                "components": args.components,
                 "save_runs": args.save_runs,
-                "design": "one-factor-at-a-time around baseline hybrid planner",
+                "design": "one-factor-at-a-time around frozen hybrid_final_v1 planner",
             },
             ensure_ascii=False,
             indent=2,

@@ -21,11 +21,19 @@
 - `hybrid_final_v1` заморожен как final-arm;
 - старые draft/result документы помечены как исторические.
 
+Закрыто дополнительно после P1-статистики:
+
+- paired comparisons используют sign-flip permutation p-value как основной `p_value`;
+- normal approximation оставлен только как diagnostic `p_normal_approx`;
+- добавлены `cohen_dz`, `rank_biserial` и Holm correction;
+- threshold metrics имеют reach-rate/censored accounting.
+- active score получил area-normalized FOV terms и regression-тест на устойчивость при смене разрешения сетки.
+- route-цели требуют мультисенсорного подтверждения, а target success учитывает сбор рядом с route goal по пути.
+- sensitivity runner теперь поддерживает `robot` cases для `collect_radius_m`, `bin_capacity_kg`, `speed_mps` вокруг `hybrid_final_v1`.
+
 Остается до финальной серии:
 
-- часть статистики анти-консервативна для малых n;
-- active score зависит от разрешения сетки;
-- требуется физическая sensitivity и проверка target precision.
+- требуется научное решение по pre-final smoke: `hybrid_final_v1` использовать как метод для анализа условий применимости или переработать hybrid-правило.
 
 ## Блок A. Ремонт baseline-ов
 
@@ -108,19 +116,17 @@ Acceptance:
 
 ### C2. Active score normalization
 
-Проблема:
+Статус: закрыто.
 
-Слагаемые функции полезности зависят от числа видимых ячеек и разрешения сетки.
+Реализовано:
 
-Решение первой версии:
+- entropy/probability/candidate FOV terms нормируются через `cell_area / active_reference_cell_area_m2`;
+- на базовой сетке `100 x 100` с ячейкой `2 x 2 м` масштаб score сохраняется;
+- добавлен regression-тест на близость score для `100 x 100` и `50 x 50` сеток.
 
-- нормировать entropy/probability/candidate terms на число видимых ячеек;
-- distance penalty оставить в метрах;
-- после изменения повторить smoke и ablation.
+Ограничение:
 
-Осторожность:
-
-Это может изменить поведение всех active/hybrid режимов. После нормировки старые pilot-результаты снова станут историческими.
+Метод остается эвристическим active score, а не expected information gain.
 
 ### C3. Expected information gain
 
@@ -136,12 +142,15 @@ Acceptance:
 
 ## Блок D. Статистика
 
-Нужно добавить:
+Статус: базово закрыто.
 
-- Wilcoxon signed-rank test для paired seed-сравнений;
-- effect size;
+Реализовано:
+
+- paired sign-flip permutation test для paired seed-сравнений;
+- effect sizes `cohen_dz` и `rank_biserial`;
 - число пар, достигших threshold metrics;
-- отдельную таблицу reach-rate для `path_to_80_m`, `path_to_95_m`.
+- reach-rate для `path_to_50/80/95` и `time_to_50/80/95`;
+- censored pair accounting в `paired_comparisons.csv`.
 
 Acceptance:
 
@@ -167,6 +176,14 @@ Acceptance:
 - либо в статье явно объясняется, почему используется time budget.
 
 ## Финальная серия после ремонта
+
+Статус перед финальной серией:
+
+- pre-final 5-seed smoke выполнен: `docs/article/results/p1_prefinal_confirmatory_smoke_5seed.md`;
+- технических залипаний нет, все 105 запусков дошли до `path_budget`;
+- `hybrid_final_v1` не является универсальным победителем относительно `greedy` и `lawnmower_dense`.
+
+Финальную 30-seed серию запускать только после согласования интерпретации этого результата.
 
 Минимальный набор стратегий:
 
@@ -198,6 +215,18 @@ Seeds:
 - target precision;
 - initial/residual Brier score;
 - initial/residual F1/IoU.
+
+Физическая sensitivity-серия:
+
+```powershell
+python -m cleanup_sim.run_sensitivity `
+  --seeds 5 `
+  --scenarios clustered_base clustered_noisy uniform_base `
+  --components robot `
+  --out-dir out/cleanup_sim/physical_sensitivity_prefinal `
+  --max-path-m 3000 `
+  --tmax-s 6000
+```
 
 ## Итоговый критерий закрытия этапа
 

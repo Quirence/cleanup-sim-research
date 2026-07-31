@@ -104,6 +104,7 @@ class PlannerConfig:
     active_mu: float = 0.55
     active_lambda: float = 0.035
     active_local_collect_weight: float = 45.0
+    active_reference_cell_area_m2: float = 4.0
     active_b_low: float = 0.35
     active_b_high: float = 0.92
     detected_confirm_prob: float = 0.72
@@ -113,6 +114,7 @@ class PlannerConfig:
     hybrid_explore_entropy_threshold: float = 0.18
     hybrid_target_batch_size: int = 8
     target_confirm_hits: int = 2
+    target_min_sensor_types: int = 2
     target_stale_after_s: float = 1800.0
     target_false_suppress_radius_m: float = 12.0
     max_path_m: float = 14400.0

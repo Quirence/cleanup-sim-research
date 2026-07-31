@@ -6,20 +6,28 @@ from typing import Any
 import pandas as pd
 
 from .config import PlannerConfig, RunConfig
+from .confirmatory import FINAL_HYBRID_EXPLORE_ENTROPY_THRESHOLD
 
 
 @dataclass(frozen=True)
 class SensitivityCase:
     name: str
+    component: str
     parameter: str | None
     value: int | float | None
 
 
-SENSITIVITY_VALUES: dict[str, tuple[int | float, ...]] = {
+PLANNER_SENSITIVITY_VALUES: dict[str, tuple[int | float, ...]] = {
     "target_confirm_hits": (1, 2, 3),
     "detected_confirm_prob": (0.65, 0.72, 0.8),
     "target_false_suppress_radius_m": (8.0, 12.0, 16.0),
     "hybrid_explore_entropy_threshold": (0.12, 0.18, 0.24),
+}
+
+ROBOT_SENSITIVITY_VALUES: dict[str, tuple[int | float, ...]] = {
+    "collect_radius_m": (2.5, 5.0),
+    "bin_capacity_kg": (10.0, 30.0, 60.0),
+    "speed_mps": (1.0, 1.5, 2.0),
 }
 
 SENSITIVITY_METRICS: tuple[str, ...] = (
@@ -46,27 +54,57 @@ SENSITIVITY_METRICS: tuple[str, ...] = (
 
 
 def iter_sensitivity_cases(base_planner: PlannerConfig) -> list[SensitivityCase]:
-    cases = [SensitivityCase(name="baseline", parameter=None, value=None)]
-    for parameter, values in SENSITIVITY_VALUES.items():
-        baseline_value = getattr(base_planner, parameter)
+    cases = [SensitivityCase(name="baseline", component="baseline", parameter=None, value=None)]
+    final_planner = replace(
+        base_planner,
+        mode="hybrid",
+        hybrid_explore_entropy_threshold=FINAL_HYBRID_EXPLORE_ENTROPY_THRESHOLD,
+    )
+    for parameter, values in PLANNER_SENSITIVITY_VALUES.items():
+        baseline_value = getattr(final_planner, parameter)
         for value in values:
             if value == baseline_value:
                 continue
-            cases.append(SensitivityCase(name=f"{parameter}={value}", parameter=parameter, value=value))
+            cases.append(SensitivityCase(name=f"{parameter}={value}", component="planner", parameter=parameter, value=value))
+    baseline_robot = RunConfig().robot
+    for parameter, values in ROBOT_SENSITIVITY_VALUES.items():
+        baseline_value = getattr(baseline_robot, parameter)
+        for value in values:
+            if value == baseline_value:
+                continue
+            cases.append(SensitivityCase(name=f"{parameter}={value}", component="robot", parameter=parameter, value=value))
     return cases
 
 
+def _final_hybrid_config(config: RunConfig) -> RunConfig:
+    return replace(
+        config,
+        planner=replace(
+            config.planner,
+            mode="hybrid",
+            hybrid_explore_entropy_threshold=FINAL_HYBRID_EXPLORE_ENTROPY_THRESHOLD,
+        ),
+    )
+
+
 def apply_sensitivity_case(config: RunConfig, case: SensitivityCase) -> RunConfig:
+    base = _final_hybrid_config(config)
     if case.parameter is None:
-        return replace(config, planner=replace(config.planner, mode="hybrid"))
-    updates: dict[str, Any] = {"mode": "hybrid", case.parameter: case.value}
-    return replace(config, planner=replace(config.planner, **updates))
+        return base
+    if case.component == "planner":
+        updates: dict[str, Any] = {case.parameter: case.value}
+        return replace(base, planner=replace(base.planner, **updates))
+    if case.component == "robot":
+        updates = {case.parameter: case.value}
+        return replace(base, robot=replace(base.robot, **updates))
+    raise ValueError(f"Unsupported sensitivity component: {case.component}")
 
 
 def cases_to_frame(cases: list[SensitivityCase]) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "sensitivity_case": case.name,
+            "sensitivity_component": case.component,
             "sensitivity_parameter": case.parameter or "baseline",
             "sensitivity_value": case.value,
         }
@@ -76,12 +114,13 @@ def cases_to_frame(cases: list[SensitivityCase]) -> pd.DataFrame:
 
 def aggregate_sensitivity_summary(summary: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
-    group_cols = ["scenario", "sensitivity_case", "sensitivity_parameter", "sensitivity_value"]
+    group_cols = ["scenario", "sensitivity_case", "sensitivity_component", "sensitivity_parameter", "sensitivity_value"]
     for keys, group in summary.groupby(group_cols, dropna=False):
-        scenario, case_name, parameter, value = keys
+        scenario, case_name, component, parameter, value = keys
         row: dict[str, Any] = {
             "scenario": scenario,
             "sensitivity_case": case_name,
+            "sensitivity_component": component,
             "sensitivity_parameter": parameter,
             "sensitivity_value": value,
             "runs": int(len(group)),

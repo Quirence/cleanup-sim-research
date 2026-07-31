@@ -20,6 +20,19 @@ def test_target_queue_confirms_only_after_enough_hits() -> None:
     assert np.allclose(confirmed[0], [20.0, 30.0], atol=1.0)
 
 
+def test_target_queue_can_require_multiple_sensor_types() -> None:
+    queue = TargetQueue(confirm_prob=0.7, confirm_hits=2, nms_radius_m=6.0, min_sensor_types=2)
+    radar = Detection(sensor="radar", position=np.array([20.0, 30.0]), confidence=0.8, source_index=None)
+    camera = Detection(sensor="camera", position=np.array([21.0, 31.0]), confidence=0.85, source_index=None)
+
+    queue.add_detections([radar], t=0.0, world=WorldConfig())
+    queue.add_detections([radar], t=1.0, world=WorldConfig())
+    assert queue.confirmed_targets() == []
+
+    queue.add_detections([camera], t=2.0, world=WorldConfig())
+    assert len(queue.confirmed_targets()) == 1
+
+
 def test_target_queue_merges_nearby_detections_and_ignores_source_id() -> None:
     queue = TargetQueue(confirm_prob=0.7, confirm_hits=1, nms_radius_m=6.0)
     detections = [
@@ -31,6 +44,7 @@ def test_target_queue_merges_nearby_detections_and_ignores_source_id() -> None:
 
     assert len(queue.tracks) == 1
     assert queue.tracks[0].source_ids == set()
+    assert queue.tracks[0].sensors == {"radar", "camera"}
     assert queue.tracks[0].confidence >= 0.88
 
 

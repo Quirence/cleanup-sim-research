@@ -15,18 +15,30 @@ class TargetTrack:
     hits: int
     first_seen_s: float
     last_seen_s: float
+    sensors: set[str] = field(default_factory=set)
     source_ids: set[int] = field(default_factory=set)
     reported_confirmed: bool = False
 
-    def confirmed_by(self, confirm_prob: float, confirm_hits: int) -> bool:
-        return self.confidence >= confirm_prob and self.hits >= confirm_hits
+    def confirmed_by(self, confirm_prob: float, confirm_hits: int, min_sensor_types: int) -> bool:
+        return (
+            self.confidence >= confirm_prob
+            and self.hits >= confirm_hits
+            and len(self.sensors) >= min_sensor_types
+        )
 
 
 class TargetQueue:
-    def __init__(self, confirm_prob: float, confirm_hits: int, nms_radius_m: float) -> None:
+    def __init__(
+        self,
+        confirm_prob: float,
+        confirm_hits: int,
+        nms_radius_m: float,
+        min_sensor_types: int = 1,
+    ) -> None:
         self.confirm_prob = confirm_prob
         self.confirm_hits = confirm_hits
         self.nms_radius_m = nms_radius_m
+        self.min_sensor_types = min_sensor_types
         self.tracks: list[TargetTrack] = []
         self.suppressed_regions: list[tuple[np.ndarray, float]] = []
 
@@ -47,6 +59,7 @@ class TargetQueue:
                         hits=1,
                         first_seen_s=t,
                         last_seen_s=t,
+                        sensors={det.sensor},
                     )
                 )
             else:
@@ -54,9 +67,13 @@ class TargetQueue:
                 match.position = (match.position * match.hits + position) / total_hits
                 match.confidence = max(match.confidence, det.confidence)
                 match.hits = total_hits
+                match.sensors.add(det.sensor)
                 match.last_seen_s = t
             track = match if match is not None else self.tracks[-1]
-            if track.confirmed_by(self.confirm_prob, self.confirm_hits) and not track.reported_confirmed:
+            if (
+                track.confirmed_by(self.confirm_prob, self.confirm_hits, self.min_sensor_types)
+                and not track.reported_confirmed
+            ):
                 track.reported_confirmed = True
                 newly_confirmed.append(track)
         return newly_confirmed
@@ -65,7 +82,7 @@ class TargetQueue:
         return [
             track.position.copy()
             for track in self.tracks
-            if track.confirmed_by(self.confirm_prob, self.confirm_hits)
+            if track.confirmed_by(self.confirm_prob, self.confirm_hits, self.min_sensor_types)
         ]
 
     def remove_near(self, position: np.ndarray, radius_m: float) -> int:

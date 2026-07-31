@@ -89,6 +89,14 @@ def aggregate_summary(summary: pd.DataFrame) -> pd.DataFrame:
         "collected_ratio_at_10km",
         "collected_ratio_at_12km",
     ]
+    threshold_cols = {
+        "time_to_50_s",
+        "time_to_80_s",
+        "time_to_95_s",
+        "path_to_50_m",
+        "path_to_80_m",
+        "path_to_95_m",
+    }
     rows = []
     for (scenario, mode), group in summary.groupby(["scenario", "mode"]):
         row = {"scenario": scenario, "mode": mode, "runs": int(len(group))}
@@ -96,6 +104,9 @@ def aggregate_summary(summary: pd.DataFrame) -> pd.DataFrame:
             if col in group:
                 row[f"{col}_mean"] = float(group[col].mean(skipna=True))
                 row[f"{col}_std"] = float(group[col].std(skipna=True))
+                if col in threshold_cols:
+                    row[f"{col}_reach_rate"] = float(group[col].notna().mean())
+                    row[f"{col}_reached"] = int(group[col].notna().sum())
         rows.append(row)
     return pd.DataFrame(rows).sort_values(["scenario", "mode"]).reset_index(drop=True)
 

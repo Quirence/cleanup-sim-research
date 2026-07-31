@@ -9,7 +9,7 @@ from cleanup_sim.mapping import bayesian_update, entropy, init_probability_map, 
 from cleanup_sim.planners import PlannerState, lawnmower_route, next_greedy, next_lawnmower, suppress_greedy_region
 from cleanup_sim.run_experiments import DEFAULT_MODES, aggregate_summary, build_parser
 from cleanup_sim.sensors import visible_mask
-from cleanup_sim.simulation import run_simulation
+from cleanup_sim.simulation import _collected_near_goal, run_simulation
 from cleanup_sim.world import DebrisField, true_occupancy
 
 
@@ -72,6 +72,13 @@ def test_true_occupancy_can_exclude_collected_debris() -> None:
 
     assert int(initial.sum()) == 2
     assert int(residual.sum()) == 1
+
+
+def test_collected_near_goal_detects_en_route_target_success() -> None:
+    events = [{"x": 10.0, "y": 10.0}, {"x": 30.0, "y": 30.0}]
+
+    assert _collected_near_goal(events, np.array([12.0, 10.0]), radius_m=3.0)
+    assert not _collected_near_goal(events, np.array([20.0, 20.0]), radius_m=3.0)
 
 
 def test_greedy_avoids_current_argmax_cell() -> None:
@@ -247,9 +254,12 @@ def test_aggregate_summary_includes_target_metrics() -> None:
         "target_visit_successes": [1, 2],
         "target_visit_false": [1, 2],
         "target_precision": [0.5, 0.5],
+        "path_to_80_m": [100.0, None],
     })
 
     aggregate = aggregate_summary(df)
 
     assert "target_confirmed_mean" in aggregate.columns
     assert "target_precision_mean" in aggregate.columns
+    assert "path_to_80_m_reach_rate" in aggregate.columns
+    assert aggregate.loc[0, "path_to_80_m_reach_rate"] == 0.5

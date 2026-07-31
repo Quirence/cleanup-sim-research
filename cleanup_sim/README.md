@@ -82,6 +82,8 @@ mean_entropy <= hybrid_explore_entropy_threshold
 
 Иначе выполняется active exploration.
 
+FOV-слагаемые active score нормируются по площади ячейки относительно `active_reference_cell_area_m2 = 4.0`, что соответствует базовой сетке `100 x 100` в акватории `200 x 200 м`.
+
 Candidate-v2 для дальнейшей проверки:
 
 ```text
@@ -99,12 +101,27 @@ hybrid_final_v1:
 - `runs/*_series.csv`: динамика сбора по времени и пути.
 - `figures/*.png`: карты, траектории, средние кривые и bar charts.
 
+## Sensitivity
+
+Физическая OFAT-серия вокруг `hybrid_final_v1`:
+
+```powershell
+python -m cleanup_sim.run_sensitivity `
+  --seeds 5 `
+  --scenarios clustered_base clustered_noisy uniform_base `
+  --components robot `
+  --out-dir out/cleanup_sim/physical_sensitivity_prefinal `
+  --max-path-m 3000 `
+  --tmax-s 6000
+```
+
 ## Ключевые метрики
 
 - доля собранного мусора;
 - путь и время до 50%, 80%, 95% сбора;
 - AUC кривой `collected_ratio vs path`;
 - доля сбора на 2, 4, 6, 8, 10, 12 км;
+- reach-rate для `path_to_50/80/95` и `time_to_50/80/95`;
 - ложные посещения подтвержденных route-целей;
 - число подтвержденных целей;
 - число попыток route-визита;
@@ -114,6 +131,7 @@ hybrid_final_v1:
 - `residual_map_f1`, `residual_map_iou`, `residual_brier_score`: качество карты относительно остаточного загрязнения после сбора.
 - `map_f1`, `map_iou`, `brier_score`: legacy alias к residual-метрикам.
 - итоговая энтропия карты.
+- paired sign-flip permutation p-value, Holm correction, `cohen_dz`, `rank_biserial`.
 
 `false_visits` считается как `target_visit_false`: это не любой arrival без сбора, а только визит к подтвержденной цели в режиме маршрутизации, после которого мусор не был собран.
 

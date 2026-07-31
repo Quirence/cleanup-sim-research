@@ -113,6 +113,12 @@ def next_greedy(
     return np.array([prob_map.grid.x_centers[ix], prob_map.grid.y_centers[iy]], dtype=float)
 
 
+def _grid_cell_area_m2(prob_map: ProbabilityMap) -> float:
+    dx = float(np.mean(np.diff(prob_map.grid.x_edges)))
+    dy = float(np.mean(np.diff(prob_map.grid.y_edges)))
+    return dx * dy
+
+
 def _score_candidate(
     point: np.ndarray,
     current: np.ndarray,
@@ -128,10 +134,11 @@ def _score_candidate(
         return -1e9
     b = prob_map.belief
     h = entropy(b)
+    area_scale = _grid_cell_area_m2(prob_map) / max(1e-9, planner.active_reference_cell_area_m2)
     candidate = (b > planner.active_b_low) & (b < planner.active_b_high)
-    entropy_value = float(np.sum(h[mask]))
-    candidate_value = float(np.sum(candidate[mask]))
-    probability_value = float(np.sum(b[mask]))
+    entropy_value = float(np.sum(h[mask]) * area_scale)
+    candidate_value = float(np.sum(candidate[mask]) * area_scale)
+    probability_value = float(np.sum(b[mask]) * area_scale)
     local_dist = np.hypot(prob_map.grid.xx - point[0], prob_map.grid.yy - point[1])
     local_mask = local_dist <= 6.0
     local_collect_value = float(np.max(b[local_mask])) if np.any(local_mask) else 0.0

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+from dataclasses import replace
 
-from cleanup_sim.config import PlannerConfig, scenario_config
+from cleanup_sim.config import GridConfig, PlannerConfig, scenario_config
 from cleanup_sim.hybrid import HybridDecision, choose_hybrid_mode
 from cleanup_sim.mapping import init_probability_map, make_grid
 from cleanup_sim.planners import _score_candidate, next_active
@@ -62,3 +63,19 @@ def test_active_no_distance_removes_travel_penalty() -> None:
     )
 
     assert no_distance_score > active_score
+
+
+def test_active_score_is_stable_under_grid_resolution_change() -> None:
+    cfg = scenario_config("clustered_base", 0, "active")
+    coarse_cfg = replace(cfg, grid=GridConfig(nx=50, ny=50, prior=cfg.grid.prior))
+    grid = make_grid(cfg.world, cfg.grid)
+    coarse_grid = make_grid(coarse_cfg.world, coarse_cfg.grid)
+    prob_map = init_probability_map(grid, cfg.grid)
+    coarse_prob_map = init_probability_map(coarse_grid, coarse_cfg.grid)
+    current = np.array([10.0, 100.0])
+    point = np.array([100.0, 100.0])
+
+    score = _score_candidate(point, current, 0.0, prob_map, cfg.planner, cfg.fusion.radar)
+    coarse_score = _score_candidate(point, current, 0.0, coarse_prob_map, cfg.planner, cfg.fusion.radar)
+
+    assert abs(score - coarse_score) / max(1.0, abs(score)) < 0.15
