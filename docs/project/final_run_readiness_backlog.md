@@ -47,6 +47,7 @@
 - `P2-01` закрыт через научно честную терминологию: текущий active score описан как heuristic uncertainty-aware score, не как expected information gain; создан `docs/article/stage2/prefinal_smoke_interpretation_decision.md`.
 - `P2-02/P2-03` закрыты без изменения поведения планировщиков: статичность мусора зафиксирована как ограничение, добавлены `true_count`/`residual_true_count` и count/collision diagnostics; создан `docs/project/static_debris_and_density_scope.md`.
 - Проверка после закрытия `P2-02/P2-03`: `python -m pytest` -> `54 passed`; корневой README обновлен до `54 passed`.
+- `P2-06` закрыт документационно: создана таблица параметров для методологии статьи `docs/article/stage2/platform_sensor_parameter_table_for_article.md` с внешними источниками и границами интерпретации.
 
 ## P0: блокеры финального прогона
 
@@ -81,7 +82,7 @@
 | P2-03 | Closed | world | Binary occupancy не отражает count/density | добавить density/count map для анализа | закрыто: `true_count`/`residual_true_count` и collision diagnostics добавлены; planner остается occupancy-based |
 | P2-04 | Closed | reproducibility | Нет CI | добавить GitHub Actions pytest | закрыто: `.github/workflows/tests.yml` гоняет pytest на Python `3.11/3.12` |
 | P2-05 | Closed | reproducibility | Нет lock/pyproject | добавить `pyproject.toml` или pinned env notes | закрыто: editable install через `pyproject.toml`, env notes в `reproducibility_notes.md` |
-| P2-06 | Moderate | article | Недостаточно таблицы параметров с внешними источниками | собрать platform/sensor parameter table | методология имеет отдельную таблицу реалистичности |
+| P2-06 | Closed | article | Недостаточно таблицы параметров с внешними источниками | собрать platform/sensor parameter table | закрыто: таблица реалистичности и готовые формулировки добавлены в stage2 |
 | P2-07 | Moderate | experiment | Candidate-v2 выбран на pilot | pre-register final config и final seeds | result docs отделяют tuning и confirmatory |
 | P2-08 | Moderate | plots | Нет финальных publication figures после ремонта | перегенерировать после final run | минимум 3 графика: curves, maps, trajectories/bar |
 

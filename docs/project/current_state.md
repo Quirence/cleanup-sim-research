@@ -64,6 +64,7 @@ python -m pytest -q
 - OFAT sensitivity around `hybrid_final_v1`;
 - physical sensitivity cases for `collect_radius_m`, `bin_capacity_kg`, `speed_mps`;
 - физическая интерпретация параметров и границы сенсорной модели: `docs/project/platform_sensor_parameter_notes.md`;
+- таблица параметров для методологии статьи: `docs/article/stage2/platform_sensor_parameter_table_for_article.md`;
 - статичность мусора и границы occupancy-map: `docs/project/static_debris_and_density_scope.md`;
 - воспроизводимая установка через `pyproject.toml`, CI workflow и `docs/project/reproducibility_notes.md`;
 - active score зафиксирован как heuristic uncertainty-aware score, не expected information gain;
@@ -141,6 +142,12 @@ P0-блокеры аудита закрыты:
 - добавлены `true_count` и `residual_true_count` как диагностические карты;
 - summary и aggregate получают collision/count metrics;
 - текст статьи обязан различать occupancy probability и debris density/count.
+
+Закрыто по таблице параметров:
+
+- подготовлена таблица платформенных и сенсорных параметров с внешними источниками;
+- зафиксировано, что симулятор не является цифровым двойником конкретного USV;
+- физическая sensitivity оставлена обязательным сопровождением финального результата.
 
 ## Следующий рабочий шаг
 
