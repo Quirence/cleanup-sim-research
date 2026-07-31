@@ -290,3 +290,9 @@ def test_run_once_parser_accepts_hybrid_mst_mode() -> None:
 
     args = build_once_parser().parse_args(["--mode", "hybrid_mst"])
     assert args.mode == "hybrid_mst"
+
+
+def test_hybrid_mst_excluded_from_default_experiment_modes() -> None:
+    from cleanup_sim.run_experiments import DEFAULT_MODES
+
+    assert "hybrid_mst" not in DEFAULT_MODES
