@@ -21,7 +21,7 @@ python -m pytest
 Текущее ожидаемое состояние:
 
 ```text
-51 passed
+54 passed
 ```
 
 Legacy-вариант через `requirements.txt` оставлен для совместимости:

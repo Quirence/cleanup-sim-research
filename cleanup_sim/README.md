@@ -131,6 +131,7 @@ python -m cleanup_sim.run_sensitivity `
 - target precision;
 - `initial_map_f1`, `initial_map_iou`, `initial_brier_score`: качество карты относительно исходного загрязнения.
 - `residual_map_f1`, `residual_map_iou`, `residual_brier_score`: качество карты относительно остаточного загрязнения после сбора.
+- `initial_*_count*` и `residual_*_count*`: диагностические count-map показатели, показывающие потерю плотностной информации при binary occupancy.
 - `map_f1`, `map_iou`, `brier_score`: legacy alias к residual-метрикам.
 - итоговая энтропия карты.
 - paired sign-flip permutation p-value, Holm correction, `cohen_dz`, `rank_biserial`.

@@ -40,7 +40,7 @@ python -m pytest -q
 Текущий результат:
 
 ```text
-51 passed
+54 passed
 ```
 
 Ключевые реализованные компоненты:
@@ -60,9 +60,11 @@ python -m pytest -q
 - area-normalized active score terms;
 - multisensor target confirmation;
 - en-route route-target success accounting;
+- true/residual count-map diagnostics для контроля потери density-информации;
 - OFAT sensitivity around `hybrid_final_v1`;
 - physical sensitivity cases for `collect_radius_m`, `bin_capacity_kg`, `speed_mps`;
 - физическая интерпретация параметров и границы сенсорной модели: `docs/project/platform_sensor_parameter_notes.md`;
+- статичность мусора и границы occupancy-map: `docs/project/static_debris_and_density_scope.md`;
 - воспроизводимая установка через `pyproject.toml`, CI workflow и `docs/project/reproducibility_notes.md`;
 - active score зафиксирован как heuristic uncertainty-aware score, не expected information gain;
 - научная интерпретация pre-final smoke: `docs/article/stage2/prefinal_smoke_interpretation_decision.md`;
@@ -125,13 +127,20 @@ P0-блокеры аудита закрыты:
 - добавлен `pyproject.toml` для editable-установки `python -m pip install -e ".[dev]"`;
 - добавлен GitHub Actions workflow для Python `3.11` и `3.12`;
 - добавлен `docs/project/reproducibility_notes.md`;
-- корневые инструкции обновлены до актуального состояния `51 passed`.
+- корневые инструкции обновлены до актуального состояния `54 passed`.
 
 Закрыто по терминологии active/EIG:
 
 - текущий active score не называется expected information gain;
 - в stage1-формулировках усиленная новизна смягчена до `heuristic uncertainty-aware score`;
 - EIG оставлен как возможное усиление следующей версии, а не как вклад текущей статьи.
+
+Закрыто по статичности мусора и occupancy/count:
+
+- мусор явно описан как статичный baseline без ветра, течений и волн;
+- добавлены `true_count` и `residual_true_count` как диагностические карты;
+- summary и aggregate получают collision/count metrics;
+- текст статьи обязан различать occupancy probability и debris density/count.
 
 ## Следующий рабочий шаг
 

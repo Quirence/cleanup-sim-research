@@ -87,6 +87,22 @@ def _prefixed_map_quality(quality: dict, prefix: str) -> dict:
     }
 
 
+def count_map_stats(count_map: np.ndarray, prefix: str) -> dict:
+    counts = np.asarray(count_map, dtype=int)
+    total = int(counts.sum())
+    occupied = int((counts > 0).sum())
+    multi = int((counts > 1).sum())
+    max_count = int(counts.max()) if counts.size else 0
+    return {
+        f"{prefix}_debris_count_total": total,
+        f"{prefix}_occupied_cells": occupied,
+        f"{prefix}_multi_debris_cells": multi,
+        f"{prefix}_max_cell_count": max_count,
+        f"{prefix}_mean_count_per_occupied_cell": float(total / occupied) if occupied > 0 else 0.0,
+        f"{prefix}_occupancy_collision_ratio": float((total - occupied) / total) if total > 0 else 0.0,
+    }
+
+
 def summarize_run(
     scenario: str,
     mode: str,
@@ -109,8 +125,12 @@ def summarize_run(
     belief: np.ndarray,
     true_occ: np.ndarray,
     residual_true_occ: np.ndarray | None = None,
+    true_count: np.ndarray | None = None,
+    residual_true_count: np.ndarray | None = None,
 ) -> dict:
     residual_occ = true_occ if residual_true_occ is None else residual_true_occ
+    initial_count = true_occ.astype(int) if true_count is None else true_count
+    residual_count = residual_occ.astype(int) if residual_true_count is None else residual_true_count
     initial_quality = map_quality(belief, true_occ)
     residual_quality = map_quality(belief, residual_occ)
     collected_ratios = [count / max(1, total_debris) for count in series.collected]
@@ -150,6 +170,8 @@ def summarize_run(
         )
     out.update(_prefixed_map_quality(initial_quality, "initial"))
     out.update(_prefixed_map_quality(residual_quality, "residual"))
+    out.update(count_map_stats(initial_count, "initial"))
+    out.update(count_map_stats(residual_count, "residual"))
     out.update({
         "map_precision": residual_quality["map_precision"],
         "map_recall": residual_quality["map_recall"],

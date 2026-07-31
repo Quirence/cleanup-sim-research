@@ -10,7 +10,7 @@ from cleanup_sim.planners import PlannerState, lawnmower_route, next_greedy, nex
 from cleanup_sim.run_experiments import DEFAULT_MODES, aggregate_summary, build_parser
 from cleanup_sim.sensors import visible_mask
 from cleanup_sim.simulation import _collected_near_goal, run_simulation
-from cleanup_sim.world import DebrisField, true_occupancy
+from cleanup_sim.world import DebrisField, true_count_map, true_occupancy
 
 
 def test_entropy_maximum_near_half() -> None:
@@ -72,6 +72,23 @@ def test_true_occupancy_can_exclude_collected_debris() -> None:
 
     assert int(initial.sum()) == 2
     assert int(residual.sum()) == 1
+
+
+def test_true_count_map_preserves_multiple_debris_per_cell() -> None:
+    field = DebrisField(
+        positions=np.array([[1.0, 1.0], [1.5, 1.5], [3.0, 3.0]]),
+        masses=np.array([1.0, 1.0, 1.0]),
+        types=np.array(["plastic", "plastic", "plastic"]),
+        collected=np.array([False, False, False]),
+    )
+    edges = np.array([0.0, 2.0, 4.0])
+
+    occupancy = true_occupancy(field, edges, edges)
+    counts = true_count_map(field, edges, edges)
+
+    assert int(occupancy.sum()) == 2
+    assert int(counts.sum()) == 3
+    assert counts[0, 0] == 2
 
 
 def test_collected_near_goal_detects_en_route_target_success() -> None:
@@ -255,6 +272,7 @@ def test_aggregate_summary_includes_target_metrics() -> None:
         "target_visit_false": [1, 2],
         "target_precision": [0.5, 0.5],
         "path_to_80_m": [100.0, None],
+        "initial_multi_debris_cells": [2, 4],
     })
 
     aggregate = aggregate_summary(df)
@@ -263,3 +281,4 @@ def test_aggregate_summary_includes_target_metrics() -> None:
     assert "target_precision_mean" in aggregate.columns
     assert "path_to_80_m_reach_rate" in aggregate.columns
     assert aggregate.loc[0, "path_to_80_m_reach_rate"] == 0.5
+    assert "initial_multi_debris_cells_mean" in aggregate.columns

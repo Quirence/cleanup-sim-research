@@ -66,3 +66,20 @@ def true_occupancy(
     iy = np.clip(np.searchsorted(y_edges, positions[:, 1], side="right") - 1, 0, occ.shape[0] - 1)
     occ[iy, ix] = True
     return occ
+
+
+def true_count_map(
+    field: DebrisField,
+    x_edges: np.ndarray,
+    y_edges: np.ndarray,
+    include_collected: bool = True,
+) -> np.ndarray:
+    counts = np.zeros((len(y_edges) - 1, len(x_edges) - 1), dtype=int)
+    indices = np.arange(len(field.positions)) if include_collected else np.where(~field.collected)[0]
+    if indices.size == 0:
+        return counts
+    positions = field.positions[indices]
+    ix = np.clip(np.searchsorted(x_edges, positions[:, 0], side="right") - 1, 0, counts.shape[1] - 1)
+    iy = np.clip(np.searchsorted(y_edges, positions[:, 1], side="right") - 1, 0, counts.shape[0] - 1)
+    np.add.at(counts, (iy, ix), 1)
+    return counts

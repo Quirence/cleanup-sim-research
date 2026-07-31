@@ -43,8 +43,10 @@
 - `P1-07` закрыт документационно: создан `docs/project/platform_sensor_parameter_notes.md` с границами интерпретации USV-параметров, camera/radar abstraction и ссылками на платформы/сенсоры-ориентиры.
 - `P1-08` частично закрыт диагностикой: выполнен pre-final 5-seed smoke после P1-ремонта, все 105 запусков дошли до `path_budget`; результаты сохранены в `out/audit/p1_prefinal_confirmatory_smoke_5seed` и описаны в `docs/article/results/p1_prefinal_confirmatory_smoke_5seed.md`.
 - Важный вывод P1-08: финальный 30-seed прогон пока не запускать, потому что `hybrid_final_v1` не является универсальным победителем и требуется согласовать научную интерпретацию.
-- `P2-04/P2-05` закрыты инфраструктурно: добавлены `pyproject.toml`, GitHub Actions `tests.yml`, `.gitattributes` и `docs/project/reproducibility_notes.md`; корневой README обновлен до `51 passed`.
+- `P2-04/P2-05` закрыты инфраструктурно: добавлены `pyproject.toml`, GitHub Actions `tests.yml`, `.gitattributes` и `docs/project/reproducibility_notes.md`.
 - `P2-01` закрыт через научно честную терминологию: текущий active score описан как heuristic uncertainty-aware score, не как expected information gain; создан `docs/article/stage2/prefinal_smoke_interpretation_decision.md`.
+- `P2-02/P2-03` закрыты без изменения поведения планировщиков: статичность мусора зафиксирована как ограничение, добавлены `true_count`/`residual_true_count` и count/collision diagnostics; создан `docs/project/static_debris_and_density_scope.md`.
+- Проверка после закрытия `P2-02/P2-03`: `python -m pytest` -> `54 passed`; корневой README обновлен до `54 passed`.
 
 ## P0: блокеры финального прогона
 
@@ -75,8 +77,8 @@
 | ID | Severity | Слой | Проблема | Fix | Acceptance |
 |---|---|---|---|---|
 | P2-01 | Closed | science | Нет expected information gain, только current entropy heuristic | либо реализовать approximate EIG, либо назвать метод heuristic | закрыто: метод назван `heuristic uncertainty-aware score`; EIG вынесен в future enhancement |
-| P2-02 | Moderate | world | Мусор статичен, нет течений/ветра | добавить future work или отдельный stress scenario | раздел ограничений явно говорит `static debris` |
-| P2-03 | Moderate | world | Binary occupancy не отражает count/density | добавить density/count map для анализа | текст различает occupancy и количество объектов |
+| P2-02 | Closed | world | Мусор статичен, нет течений/ветра | добавить future work или отдельный stress scenario | закрыто: static debris явно записан как baseline-допущение и future work |
+| P2-03 | Closed | world | Binary occupancy не отражает count/density | добавить density/count map для анализа | закрыто: `true_count`/`residual_true_count` и collision diagnostics добавлены; planner остается occupancy-based |
 | P2-04 | Closed | reproducibility | Нет CI | добавить GitHub Actions pytest | закрыто: `.github/workflows/tests.yml` гоняет pytest на Python `3.11/3.12` |
 | P2-05 | Closed | reproducibility | Нет lock/pyproject | добавить `pyproject.toml` или pinned env notes | закрыто: editable install через `pyproject.toml`, env notes в `reproducibility_notes.md` |
 | P2-06 | Moderate | article | Недостаточно таблицы параметров с внешними источниками | собрать platform/sensor parameter table | методология имеет отдельную таблицу реалистичности |

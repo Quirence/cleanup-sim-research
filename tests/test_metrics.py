@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from cleanup_sim.metrics import TimeSeries, auc_collected_ratio, summarize_run, value_at_budget
+from cleanup_sim.metrics import TimeSeries, auc_collected_ratio, count_map_stats, summarize_run, value_at_budget
 
 
 def test_value_at_budget_returns_last_known_value_before_budget() -> None:
@@ -85,3 +85,51 @@ def test_summarize_run_separates_initial_and_residual_map_quality() -> None:
 
     assert summary["initial_brier_score"] > summary["residual_brier_score"]
     assert summary["brier_score"] == summary["residual_brier_score"]
+
+
+def test_count_map_stats_reports_occupancy_collisions() -> None:
+    stats = count_map_stats(np.array([[2, 0], [1, 3]]), "initial")
+
+    assert stats["initial_debris_count_total"] == 6
+    assert stats["initial_occupied_cells"] == 3
+    assert stats["initial_multi_debris_cells"] == 2
+    assert stats["initial_max_cell_count"] == 3
+    assert stats["initial_occupancy_collision_ratio"] == 0.5
+
+
+def test_summarize_run_includes_count_map_diagnostics() -> None:
+    series = TimeSeries(
+        time_s=[0.0],
+        path_m=[0.0],
+        collected=[0],
+        false_visits=[0],
+        planner_mode=["active"],
+    )
+
+    summary = summarize_run(
+        scenario="clustered_base",
+        mode="active",
+        seed=0,
+        total_debris=3,
+        collected_count=0,
+        collected_mass_kg=0.0,
+        total_mass_kg=1.0,
+        path_m=0.0,
+        path_budget_m=1.0,
+        sim_time_s=0.0,
+        unload_events=0,
+        false_visits=0,
+        stop_reason="path_budget",
+        target_confirmed=0,
+        target_route_attempts=0,
+        target_visit_successes=0,
+        target_visit_false=0,
+        series=series,
+        belief=np.array([[0.1, 0.1]]),
+        true_occ=np.array([[True, True]]),
+        true_count=np.array([[2, 1]]),
+    )
+
+    assert summary["initial_debris_count_total"] == 3
+    assert summary["initial_multi_debris_cells"] == 1
+    assert summary["initial_occupancy_collision_ratio"] == 1 / 3

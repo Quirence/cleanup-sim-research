@@ -18,7 +18,7 @@ from .planners import (
 )
 from .sensors import apply_fusion_update
 from .targets import TargetQueue
-from .world import DebrisField, make_debris_field, true_occupancy
+from .world import DebrisField, make_debris_field, true_count_map
 
 
 @dataclass
@@ -28,7 +28,9 @@ class SimulationResult:
     path: np.ndarray
     belief: np.ndarray
     true_occ: np.ndarray
+    true_count: np.ndarray
     residual_true_occ: np.ndarray
+    residual_true_count: np.ndarray
     events: pd.DataFrame
     series: pd.DataFrame
     summary: dict
@@ -77,7 +79,8 @@ def run_simulation(config: RunConfig) -> SimulationResult:
     field = make_debris_field(rng, config.world)
     grid = make_grid(config.world, config.grid)
     prob_map = init_probability_map(grid, config.grid)
-    true_occ = true_occupancy(field, grid.x_edges, grid.y_edges)
+    true_count = true_count_map(field, grid.x_edges, grid.y_edges)
+    true_occ = true_count > 0
 
     state = PlannerState(coverage_route=lawnmower_route(config.world, config.planner))
     target_queue = TargetQueue(
@@ -225,7 +228,8 @@ def run_simulation(config: RunConfig) -> SimulationResult:
             break
 
     path_arr = np.asarray(path)
-    residual_true_occ = true_occupancy(field, grid.x_edges, grid.y_edges, include_collected=False)
+    residual_true_count = true_count_map(field, grid.x_edges, grid.y_edges, include_collected=False)
+    residual_true_occ = residual_true_count > 0
     events_df = pd.DataFrame(events)
     series_df = pd.DataFrame({
         "time_s": ts.time_s,
@@ -258,6 +262,8 @@ def run_simulation(config: RunConfig) -> SimulationResult:
         belief=prob_map.belief,
         true_occ=true_occ,
         residual_true_occ=residual_true_occ,
+        true_count=true_count,
+        residual_true_count=residual_true_count,
     )
     return SimulationResult(
         config=config,
@@ -265,7 +271,9 @@ def run_simulation(config: RunConfig) -> SimulationResult:
         path=path_arr,
         belief=prob_map.belief.copy(),
         true_occ=true_occ,
+        true_count=true_count,
         residual_true_occ=residual_true_occ,
+        residual_true_count=residual_true_count,
         events=events_df,
         series=series_df,
         summary=summary,
