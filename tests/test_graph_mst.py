@@ -6,8 +6,16 @@ import numpy as np
 
 from cleanup_sim.config import scenario_config
 from cleanup_sim.mapping import init_probability_map, make_grid
-from cleanup_sim.planners import PlannerState, choose_next_goal, lawnmower_route, mst_route
+from cleanup_sim.planners import (
+    PlannerState,
+    choose_next_goal,
+    lawnmower_route,
+    mst_route,
+    nearest_neighbor_route,
+    should_invalidate_graph_route,
+)
 from cleanup_sim.sensors import Detection
+from cleanup_sim.simulation import run_simulation
 from cleanup_sim.targets import TargetQueue
 
 
@@ -43,6 +51,22 @@ def test_mst_route_respects_limit() -> None:
 
 def test_mst_route_handles_empty_targets() -> None:
     assert mst_route(np.array([0.0, 0.0]), []) == []
+
+
+def test_mst_route_differs_from_nearest_neighbor_on_branching_layout() -> None:
+    start = np.array([0.0, 0.0])
+    targets = [
+        np.array([38.1, 43.0]),
+        np.array([48.9, 97.6]),
+        np.array([77.6, 30.9]),
+        np.array([27.0, 86.3]),
+        np.array([88.1, 51.1]),
+    ]
+
+    mst_order = [tuple(p) for p in mst_route(start, targets)]
+    nn_order = [tuple(p) for p in nearest_neighbor_route(start, targets)]
+
+    assert mst_order != nn_order
 
 
 def _empty_target_queue(cfg) -> TargetQueue:
@@ -108,10 +132,6 @@ def test_choose_next_goal_falls_back_to_lawnmower_without_confirmed_targets() ->
     assert np.allclose(goal, route[0])
 
 
-from cleanup_sim.planners import should_invalidate_graph_route
-from cleanup_sim.simulation import run_simulation
-
-
 def test_should_invalidate_graph_route_only_for_graph_mst_route_with_new_confirmations() -> None:
     assert should_invalidate_graph_route("graph_mst", "route", [object()]) is True
     assert should_invalidate_graph_route("graph_mst", "route", []) is False
@@ -130,6 +150,27 @@ def test_graph_mst_mode_runs_full_simulation_and_records_route_events() -> None:
     events = set(result.events["event"].tolist()) if not result.events.empty else set()
     assert "target_confirmed" in events
     assert "target_routed" in events
+
+
+def test_graph_mst_invalidation_hook_causes_route_churn_during_simulation() -> None:
+    # When a new target is confirmed mid-route, should_invalidate_graph_route (wired into
+    # simulation.py) clears the in-flight route so choose_next_goal replans immediately.
+    # Each replan while still in "route" mode logs another "target_routed" event, but
+    # target_route_attempts only counts routes that were followed all the way to arrival.
+    # If the invalidation hook is actually firing, routes get abandoned and rebuilt before
+    # arrival, so the number of "target_routed" events must exceed target_route_attempts.
+    # If the hook were deleted (or never wired up), routes would only ever be replaced on
+    # arrival, so target_routed events would equal target_route_attempts (plus at most the
+    # initial coverage->route transitions), and this assertion would fail.
+    cfg = scenario_config("clustered_base", 4, "graph_mst")
+    cfg = replace(cfg, robot=replace(cfg.robot, tmax_s=1200.0))
+    result = run_simulation(cfg)
+
+    assert not result.events.empty
+    n_target_routed = int((result.events["event"] == "target_routed").sum())
+    target_route_attempts = result.summary["target_route_attempts"]
+
+    assert n_target_routed > target_route_attempts
 
 
 def test_run_experiments_parser_accepts_graph_mst_mode() -> None:

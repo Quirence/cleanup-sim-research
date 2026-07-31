@@ -75,7 +75,7 @@ def nearest_neighbor_route(start: np.ndarray, targets: list[np.ndarray], limit: 
 def mst_route(start: np.ndarray, targets: list[np.ndarray], limit: int | None = None) -> list[np.ndarray]:
     if not targets:
         return []
-    nodes = [np.asarray(start, dtype=float)] + [np.asarray(t, dtype=float) for t in targets]
+    nodes = [np.array(start, dtype=float)] + [np.array(t, dtype=float) for t in targets]
     n = len(nodes)
     in_tree = [False] * n
     in_tree[0] = True
@@ -287,5 +287,5 @@ def pop_arrived_route_goal(
         state.current_route.pop(0)
 
 
-def should_invalidate_graph_route(mode: str, current_planner_mode: str, confirmations: list) -> bool:
-    return mode == "graph_mst" and current_planner_mode == "route" and bool(confirmations)
+def should_invalidate_graph_route(mode: str, goal_label: str, confirmations: list[TargetTrack]) -> bool:
+    return mode == "graph_mst" and goal_label == "route" and bool(confirmations)
