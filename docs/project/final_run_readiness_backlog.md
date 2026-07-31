@@ -44,6 +44,7 @@
 - `P1-08` частично закрыт диагностикой: выполнен pre-final 5-seed smoke после P1-ремонта, все 105 запусков дошли до `path_budget`; результаты сохранены в `out/audit/p1_prefinal_confirmatory_smoke_5seed` и описаны в `docs/article/results/p1_prefinal_confirmatory_smoke_5seed.md`.
 - Важный вывод P1-08: финальный 30-seed прогон пока не запускать, потому что `hybrid_final_v1` не является универсальным победителем и требуется согласовать научную интерпретацию.
 - `P2-04/P2-05` закрыты инфраструктурно: добавлены `pyproject.toml`, GitHub Actions `tests.yml`, `.gitattributes` и `docs/project/reproducibility_notes.md`; корневой README обновлен до `51 passed`.
+- `P2-01` закрыт через научно честную терминологию: текущий active score описан как heuristic uncertainty-aware score, не как expected information gain; создан `docs/article/stage2/prefinal_smoke_interpretation_decision.md`.
 
 ## P0: блокеры финального прогона
 
@@ -73,7 +74,7 @@
 
 | ID | Severity | Слой | Проблема | Fix | Acceptance |
 |---|---|---|---|---|
-| P2-01 | Moderate | science | Нет expected information gain, только current entropy heuristic | либо реализовать approximate EIG, либо назвать метод heuristic | формулировка новизны не сводится к “новый EIG”, если EIG нет |
+| P2-01 | Closed | science | Нет expected information gain, только current entropy heuristic | либо реализовать approximate EIG, либо назвать метод heuristic | закрыто: метод назван `heuristic uncertainty-aware score`; EIG вынесен в future enhancement |
 | P2-02 | Moderate | world | Мусор статичен, нет течений/ветра | добавить future work или отдельный stress scenario | раздел ограничений явно говорит `static debris` |
 | P2-03 | Moderate | world | Binary occupancy не отражает count/density | добавить density/count map для анализа | текст различает occupancy и количество объектов |
 | P2-04 | Closed | reproducibility | Нет CI | добавить GitHub Actions pytest | закрыто: `.github/workflows/tests.yml` гоняет pytest на Python `3.11/3.12` |

@@ -64,6 +64,8 @@ python -m pytest -q
 - physical sensitivity cases for `collect_radius_m`, `bin_capacity_kg`, `speed_mps`;
 - физическая интерпретация параметров и границы сенсорной модели: `docs/project/platform_sensor_parameter_notes.md`;
 - воспроизводимая установка через `pyproject.toml`, CI workflow и `docs/project/reproducibility_notes.md`;
+- active score зафиксирован как heuristic uncertainty-aware score, не expected information gain;
+- научная интерпретация pre-final smoke: `docs/article/stage2/prefinal_smoke_interpretation_decision.md`;
 - повторяющийся coverage baseline;
 - подавление посещенных greedy-регионов;
 - разделенные метрики карты `initial_*` и `residual_*`.
@@ -124,6 +126,12 @@ P0-блокеры аудита закрыты:
 - добавлен GitHub Actions workflow для Python `3.11` и `3.12`;
 - добавлен `docs/project/reproducibility_notes.md`;
 - корневые инструкции обновлены до актуального состояния `51 passed`.
+
+Закрыто по терминологии active/EIG:
+
+- текущий active score не называется expected information gain;
+- в stage1-формулировках усиленная новизна смягчена до `heuristic uncertainty-aware score`;
+- EIG оставлен как возможное усиление следующей версии, а не как вклад текущей статьи.
 
 ## Следующий рабочий шаг
 

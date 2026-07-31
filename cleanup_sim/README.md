@@ -56,7 +56,7 @@ python -m cleanup_sim.run_experiments `
 - `active_entropy`: абляция, использует энтропию карты и штраф расстояния.
 - `active_probability`: абляция, использует вероятность мусора и штраф расстояния.
 - `active_no_distance`: абляция полного active score без штрафа расстояния.
-- `active`: entropy + candidate/probability exploitation + local collect value + distance penalty.
+- `active`: heuristic uncertainty-aware score: current entropy + candidate/probability exploitation + local collect value + distance penalty.
 - `detected_tsp`: маршрут по подтвержденным детекциям без доступа к истинной карте.
 - `hybrid`: переключение между active exploration и routing по подтвержденным целям.
 
@@ -83,6 +83,8 @@ mean_entropy <= hybrid_explore_entropy_threshold
 Иначе выполняется active exploration.
 
 FOV-слагаемые active score нормируются по площади ячейки относительно `active_reference_cell_area_m2 = 4.0`, что соответствует базовой сетке `100 x 100` в акватории `200 x 200 м`.
+
+Текущий `active` не является expected information gain planner: он использует текущую энтропию и вероятность в FOV, но не моделирует распределение будущих наблюдений и ожидаемый posterior.
 
 Candidate-v2 для дальнейшей проверки:
 
