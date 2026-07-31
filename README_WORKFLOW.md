@@ -41,9 +41,9 @@
 
 `docs/article/stage2/stage2_repair_and_final_experiment_plan.md`
 
-Актуальный pilot после исправления AUC и `lawnmower`:
+Актуальный диагностический pre-final smoke после закрытия P0/P1:
 
-`docs/article/results/confirmatory_hybrid_v2_pilot.md`
+`docs/article/results/p1_prefinal_confirmatory_smoke_5seed.md`
 
 Разбор внешнего аудита:
 
@@ -59,14 +59,18 @@
 
 `docs/article/stage1/stage1_scientific_positioning.md`
 
-Следующий технический этап:
+Следующий научно-технический этап:
 
-> ремонт экспериментальной базы: честный coverage baseline, исправленный greedy, корректные map metrics, статистика и только затем финальная серия 30 seed.
+> согласовать интерпретацию pre-final smoke: фиксировать `hybrid_final_v1` как метод для анализа условий применимости, перерабатывать hybrid-правило или смещать вклад статьи на протокол сравнения и trade-off analysis.
 
 Быстрая проверка симулятора:
 
 ```powershell
-python -m pytest tests -q
-python -m pytest -q
+python -m pip install -e ".[dev]"
+python -m pytest
 python -m cleanup_sim.run_confirmatory --seeds 1 --scenarios clustered_base --out-dir out/cleanup_sim/dev_smoke --max-path-m 1200 --tmax-s 2400
 ```
+
+Подробные инструкции по воспроизводимости:
+
+`docs/project/reproducibility_notes.md`

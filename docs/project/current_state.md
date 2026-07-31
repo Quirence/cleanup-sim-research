@@ -63,6 +63,7 @@ python -m pytest -q
 - OFAT sensitivity around `hybrid_final_v1`;
 - physical sensitivity cases for `collect_radius_m`, `bin_capacity_kg`, `speed_mps`;
 - физическая интерпретация параметров и границы сенсорной модели: `docs/project/platform_sensor_parameter_notes.md`;
+- воспроизводимая установка через `pyproject.toml`, CI workflow и `docs/project/reproducibility_notes.md`;
 - повторяющийся coverage baseline;
 - подавление посещенных greedy-регионов;
 - разделенные метрики карты `initial_*` и `residual_*`.
@@ -117,9 +118,22 @@ P0-блокеры аудита закрыты:
 
 2. Только после этого запускать финальный 30-seed confirmatory-run.
 
+Закрыто по воспроизводимости:
+
+- добавлен `pyproject.toml` для editable-установки `python -m pip install -e ".[dev]"`;
+- добавлен GitHub Actions workflow для Python `3.11` и `3.12`;
+- добавлен `docs/project/reproducibility_notes.md`;
+- корневые инструкции обновлены до актуального состояния `51 passed`.
+
 ## Следующий рабочий шаг
 
-Не запускать финальные 30 seed до ремонта экспериментальной базы.
+Не запускать финальные 30 seed до научного решения по интерпретации pre-final smoke.
+
+Ближайшая развилка:
+
+- оставить `hybrid_final_v1` как заранее зафиксированный метод и писать статью как анализ условий применимости;
+- переработать hybrid-правило и снова пройти pre-final smoke;
+- сместить основной вклад на симуляционный протокол, честные baseline-ы и trade-off analysis.
 
 Следующий этап:
 

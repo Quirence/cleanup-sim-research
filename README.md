@@ -14,14 +14,21 @@
 ## Проверка
 
 ```powershell
-pip install -r requirements.txt
-python -m pytest -q
+python -m pip install -e ".[dev]"
+python -m pytest
 ```
 
 Текущее ожидаемое состояние:
 
 ```text
-37 passed
+51 passed
+```
+
+Legacy-вариант через `requirements.txt` оставлен для совместимости:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pytest
 ```
 
 ## Важное ограничение
@@ -30,4 +37,10 @@ python -m pytest -q
 
 `docs/article/stage2/stage2_repair_and_final_experiment_plan.md`
 
+Главная текущая причина паузы: pre-final smoke показал, что `hybrid_final_v1` не является универсальным победителем, поэтому перед финальным прогоном нужно согласовать научную интерпретацию.
+
 Не использовать старые raw-результаты из `out/` как финальные таблицы статьи.
+
+Подробный маршрут воспроизводимости:
+
+`docs/project/reproducibility_notes.md`
