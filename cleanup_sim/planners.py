@@ -72,6 +72,51 @@ def nearest_neighbor_route(start: np.ndarray, targets: list[np.ndarray], limit: 
     return route
 
 
+def mst_route(start: np.ndarray, targets: list[np.ndarray], limit: int | None = None) -> list[np.ndarray]:
+    if not targets:
+        return []
+    nodes = [np.asarray(start, dtype=float)] + [np.asarray(t, dtype=float) for t in targets]
+    n = len(nodes)
+    in_tree = [False] * n
+    in_tree[0] = True
+    min_edge = [float("inf")] * n
+    parent = [0] * n
+    for j in range(1, n):
+        min_edge[j] = float(np.linalg.norm(nodes[j] - nodes[0]))
+    adjacency: dict[int, list[int]] = {i: [] for i in range(n)}
+    for _ in range(n - 1):
+        u = -1
+        best = float("inf")
+        for j in range(n):
+            if not in_tree[j] and min_edge[j] < best:
+                best = min_edge[j]
+                u = j
+        in_tree[u] = True
+        adjacency[parent[u]].append(u)
+        adjacency[u].append(parent[u])
+        for j in range(n):
+            if not in_tree[j]:
+                d = float(np.linalg.norm(nodes[j] - nodes[u]))
+                if d < min_edge[j]:
+                    min_edge[j] = d
+                    parent[j] = u
+    order: list[int] = []
+    visited = [False] * n
+    stack = [0]
+    while stack:
+        node = stack.pop()
+        if visited[node]:
+            continue
+        visited[node] = True
+        if node != 0:
+            order.append(node)
+        children = [j for j in adjacency[node] if not visited[j]]
+        children.sort(key=lambda j: float(np.linalg.norm(nodes[j] - nodes[node])), reverse=True)
+        stack.extend(children)
+    route = [nodes[i] for i in order]
+    return route[:limit] if limit is not None else route
+
+
 def next_lawnmower(state: PlannerState) -> np.ndarray:
     if state.coverage_index >= len(state.coverage_route):
         state.coverage_index = 0
