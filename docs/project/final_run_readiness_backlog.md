@@ -5,16 +5,41 @@
 
 Правило: финальный `30 seed` прогон запрещен, пока P0-блокеры не закрыты и P1-проверки не пройдены smoke/confirmatory-прогоном.
 
+## Журнал закрытия
+
+- `P0-01` закрыт кодом: `greedy` больше не выбирает бесконечно текущую argmax-ячейку, подавляет физически посещенную область и исключает текущий радиус сбора при выборе следующей цели. Regression-тесты добавлены.
+- Проверка после закрытия `P0-01`: `python -m pytest -q` -> `40 passed`.
+- Smoke `greedy`, `3 scenarios x 5 seeds`, `max_path_m=3000`, `tmax_s=6000`: все 15 запусков завершились по `path_budget`; средняя доля сбора составила `0.803` для `clustered_base`, `0.569` для `clustered_noisy`, `0.613` для `uniform_base`.
+- Научное следствие: прежние сравнения с `greedy` считать устаревшими; после ремонта greedy стал сильным baseline-ом, поэтому финальный вывод должен строиться заново.
+- `P0-02` закрыт кодом: добавлены явные режимы `lawnmower_sparse` и `lawnmower_dense`; legacy `lawnmower` оставлен для совместимости, но новые серии должны использовать два именованных baseline-а.
+- Проверка после закрытия `P0-02`: `python -m pytest -q` -> `41 passed`.
+- Smoke `lawnmower_sparse/lawnmower_dense`, `3 scenarios x 5 seeds`, `max_path_m=3000`, `tmax_s=6000`: все 30 запусков завершились по `path_budget`; dense-средние `0.663/0.663/0.643` против sparse-средних `0.511/0.511/0.488`.
+- Научное следствие: `lawnmower_dense` становится обязательным честным coverage baseline; `lawnmower_sparse` можно использовать только как экономичный sparse-coverage режим.
+- `P0-03` закрыт кодом: summary теперь содержит `initial_map_*`/`initial_brier_score` и `residual_map_*`/`residual_brier_score`; старые `map_*`/`brier_score` временно являются alias к residual-метрикам.
+- Проверка после закрытия `P0-03`: `python -m pytest -q` -> `43 passed`.
+- Smoke `greedy/lawnmower_dense`, `2 scenarios x 2 seeds`, `max_path_m=1000`, `tmax_s=2000`: новые колонки присутствуют, initial/residual метрики расходятся; residual occupancy исключает собранный мусор.
+- Научное следствие: качество карты теперь можно обсуждать как два разных вопроса - восстановление исходного загрязнения и оценка остаточного загрязнения после сбора.
+- `P0-04` закрыт кодом: active-семейство больше не использует `greedy` как fallback между перепланированиями; в `PlannerState` добавлена явная `active_goal`.
+- Проверка после закрытия `P0-04`: `python -m pytest -q` -> `44 passed`.
+- Smoke `active/active_entropy/active_probability/active_no_distance`, `2 scenarios x 3 seeds`, `max_path_m=1200`, `tmax_s=3000`: во всех 24 series-файлах planner modes содержат только `active` или `active/return`; скрытого `greedy` нет.
+- Научное следствие: старые результаты active-семейства считать устаревшими, так как они могли быть смесью active и greedy-поведения.
+- `P0-05` закрыт кодом: final-arm заморожен как `hybrid_final_v1` с `hybrid_explore_entropy_threshold = 0.24`; `run_confirmatory` использует его как reference mode.
+- `P0-06` закрыт документацией: ключевой черновик статьи и исторические result-документы помечены как устаревшие, не предназначенные для цитирования в новой версии статьи.
+- Проверка после закрытия `P0-05/P0-06`: `python -m pytest -q` -> `44 passed`; confirmatory smoke `1 scenario x 1 seed` создает `lawnmower_sparse`, `lawnmower_dense`, `greedy`, `active`, `detected_tsp`, `hybrid_base`, `hybrid_final_v1`, а paired comparisons используют `hybrid_final_v1`.
+- Научное следствие: дальнейший pre-final/final прогон должен использовать `hybrid_final_v1` без дополнительной подгонки параметров по финальным seed.
+- Дополнительно закрыт мертвый параметр `hybrid_switch_prob`: он удален из `PlannerConfig` и тестов, чтобы таблица параметров статьи не содержала неиспользуемую настройку.
+- Объединенный post-P0 smoke `3 scenarios x 2 seeds`, `max_path_m=3000`, `tmax_s=6000` сохранен в `out/audit/p0_all_closed_confirmatory_smoke_2seed`; он диагностический, не финальный.
+
 ## P0: блокеры финального прогона
 
 | ID | Severity | Слой | Проблема | Evidence | Impact | Fix | Acceptance |
 |---|---|---|---|---|---|---|---|
-| P0-01 | Blocker | algorithm | `greedy` залипает в argmax | `cleanup_sim/planners.py:81`; smoke: `time_budget` во всех проверенных greedy runs | baseline нечестный, вывод “greedy хуже” незащитим | tabu/memory, исключение текущей цели, подавление belief после посещения | `greedy` проходит >=80-90% path budget на `3 scenarios x 5 seeds`, кроме `done` |
-| P0-02 | Blocker | algorithm/science | `lawnmower` слишком sparse | `coverage_spacing_m=22`, `collect_radius_m=5` | adaptive/hybrid сравнивается со слабым coverage baseline | добавить `lawnmower_dense` или снизить spacing до `<=10 м`; текущий вариант назвать sparse | в финальном summary есть dense baseline; статья не называет sparse полным покрытием |
-| P0-03 | Blocker | metrics | map quality использует исходный true occupancy после сбора | `simulation.py:68`, `metrics.py:60`, `sensors.py:51` | эффективный сбор штрафуется как плохая карта | разделить `initial_true_occ` и `residual_true_occ` | summary содержит `initial_map_*` и `residual_map_*`; result docs объясняют обе группы |
-| P0-04 | Blocker | algorithm | active modes fallback-ятся в `greedy` | `planners.py:173-179` | active baseline загрязнен bugged greedy | хранить active goal или выбирать active fallback без greedy | в active series нет planner_mode `greedy`; smoke active не залипает |
-| P0-05 | Blocker | reproducibility/science | final hybrid config не заморожен | `hybrid_candidate_v2` пока pilot | риск tuning-on-test | завести явно named final config до 30-seed | config snapshot сохраняется в out; seeds финального прогона определены заранее |
-| P0-06 | Blocker | article | черновик статьи содержит устаревшие результаты/заявления | `docs/article/drafts/article_draft_probabilistic_mapping.md` | текст может противоречить текущему коду | пометить старые таблицы obsolete или переписать results section | в черновике нет 30-seed claims до финального run |
+| P0-01 | Closed | algorithm | `greedy` залипает в argmax | `cleanup_sim/planners.py:81`; smoke: `time_budget` во всех проверенных greedy runs | baseline нечестный, вывод “greedy хуже” незащитим | tabu/memory, исключение текущей цели, подавление belief после посещения | закрыто: `40 passed`, `3 scenarios x 5 seeds` greedy reaches `path_budget` |
+| P0-02 | Closed | algorithm/science | `lawnmower` слишком sparse | `coverage_spacing_m=22`, `collect_radius_m=5` | adaptive/hybrid сравнивается со слабым coverage baseline | добавить `lawnmower_dense` или снизить spacing до `<=10 м`; текущий вариант назвать sparse | закрыто: есть `lawnmower_sparse` и `lawnmower_dense`; dense spacing `10 м` |
+| P0-03 | Closed | metrics | map quality использует исходный true occupancy после сбора | `simulation.py:68`, `metrics.py:60`, `sensors.py:51` | эффективный сбор штрафуется как плохая карта | разделить `initial_true_occ` и `residual_true_occ` | закрыто: summary содержит `initial_*` и `residual_*`; residual excludes collected debris |
+| P0-04 | Closed | algorithm | active modes fallback-ятся в `greedy` | `planners.py:173-179` | active baseline загрязнен bugged greedy | хранить active goal или выбирать active fallback без greedy | закрыто: active series не содержит planner_mode `greedy` |
+| P0-05 | Closed | reproducibility/science | final hybrid config не заморожен | `hybrid_candidate_v2` пока pilot | риск tuning-on-test | завести явно named final config до 30-seed | закрыто: `hybrid_final_v1`, reference mode в `run_confirmatory` |
+| P0-06 | Closed | article | черновик статьи содержит устаревшие результаты/заявления | `docs/article/drafts/article_draft_probabilistic_mapping.md` | текст может противоречить текущему коду | пометить старые таблицы obsolete или переписать results section | закрыто: draft/result docs помечены как исторические/устаревшие |
 
 ## P1: блокеры текста статьи и статистической защиты
 
@@ -54,7 +79,7 @@
 
 ## Минимальный маршрут до READY
 
-1. Исправить `greedy`, active fallback и `hybrid_switch_prob`.
+1. Исправить `greedy` и active fallback.
 2. Добавить dense lawnmower baseline.
 3. Разделить map metrics на initial/residual.
 4. Добавить статистику Wilcoxon/permutation + reach-rate.

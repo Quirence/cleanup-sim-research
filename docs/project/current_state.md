@@ -40,7 +40,7 @@ python -m pytest -q
 Текущий результат:
 
 ```text
-37 passed
+44 passed
 ```
 
 Ключевые реализованные компоненты:
@@ -49,36 +49,31 @@ python -m pytest -q
 - camera/radar probabilistic detections;
 - Bayesian update карты вероятностей;
 - `TargetQueue` без oracle-доступа к истинной карте;
-- стратегии `lawnmower`, `greedy`, `active`, `detected_tsp`, `hybrid`;
+- стратегии `lawnmower_sparse`, `lawnmower_dense`, legacy `lawnmower`, `greedy`, `active`, `detected_tsp`, `hybrid`;
 - ablation-режимы active score;
 - sensitivity runner;
-- confirmatory runner;
+- confirmatory runner с замороженным reference-arm `hybrid_final_v1`;
 - path budget `max_path_m`;
 - path-normalized AUC по общему бюджету пути;
-- повторяющийся `lawnmower` baseline.
+- повторяющийся coverage baseline;
+- подавление посещенных greedy-регионов;
+- разделенные метрики карты `initial_*` и `residual_*`.
 
 ## Актуальные результаты
 
-Использовать как текущий pilot:
+Финальных результатов статьи пока нет.
 
-`out/cleanup_sim/confirmatory_hybrid_v2_pilot_fixed_auc_lawnmower/`
+Актуальный диагностический smoke после закрытия P0:
 
-Документ:
+`out/audit/p0_all_closed_confirmatory_smoke_2seed/`
 
-`docs/article/results/confirmatory_hybrid_v2_pilot.md`
+Этот smoke не является публикационной статистикой, но показывает новую честную картину после ремонта baseline-ов:
 
-Состояние уборки рабочей директории:
-
-`docs/project/cleanup_manifest.md`
-
-Краткий вывод:
-
-- `hybrid_candidate_v2` с `hybrid_explore_entropy_threshold=0.24` лучше `hybrid_base=0.18` по AUC во всех трех сценариях pilot-серии.
-- Относительно `detected_tsp` эффект сценарно-зависим:
-  - в части сценариев hybrid лучше по AUC;
-  - по итоговой доле сбора detected_tsp остается очень сильным baseline;
-  - нельзя заявлять универсальное превосходство hybrid.
-- `active` и `lawnmower` заметно слабее hybrid/target-routing по сбору, но `lawnmower` больше нельзя использовать как искусственно ослабленный baseline.
+- `greedy` стал сильным baseline-ом и больше не может считаться “провальным” по старым таблицам;
+- `lawnmower_dense` обязателен как честный coverage baseline, `lawnmower_sparse` остается экономичным sparse-coverage вариантом;
+- `hybrid_final_v1` заморожен как final-arm с `hybrid_explore_entropy_threshold = 0.24`;
+- в коротком 2-seed smoke `hybrid_final_v1` лучше `hybrid_base`, но не универсально лучше `greedy`;
+- старые выводы про превосходство hybrid/active должны быть пересчитаны после pre-final и final-run.
 
 ## Исторические результаты
 
@@ -94,30 +89,32 @@ python -m pytest -q
 
 ## Блокеры перед финальной серией
 
-1. Сделать честный coverage baseline:
-   - либо `coverage_spacing_m <= 10.0`;
-   - либо отдельные режимы `lawnmower_sparse` и `lawnmower_dense`.
+P0-блокеры аудита закрыты:
 
-2. Исправить `greedy` baseline:
-   - tabu/memory для недавно посещенных целей;
-   - запрет выбора текущей ячейки как цели;
-   - корректная обработка собственной ячейки в FOV.
+- исправлен `greedy`;
+- добавлены `lawnmower_sparse` и `lawnmower_dense`;
+- разделены initial/residual map metrics;
+- active больше не fallback-ится в `greedy`;
+- `hybrid_final_v1` заморожен как final-arm;
+- старые draft/result документы помечены как исторические;
+- мертвый параметр `hybrid_switch_prob` удален.
 
-3. Разделить метрики карты:
-   - initial occupancy;
-   - residual occupancy;
-   - не штрафовать корректное снижение belief после сбора.
+Остаются блокеры уровня P1/P2:
 
-4. Убрать или использовать `hybrid_switch_prob`.
-
-5. Улучшить статистику:
+1. Улучшить статистику:
    - Wilcoxon signed-rank;
    - effect size;
    - явная обработка NaN/censored threshold metrics.
 
-6. Проверить `time_budget` у `hybrid_candidate_v2` в `clustered_base`.
+2. Провести pre-final smoke на 5 seed после P1-ремонта.
 
-7. Нормировать active score или честно оставить его как эвристику.
+3. Нормировать active score или честно оставить его как эвристику и добавить sensitivity.
+
+4. Проверить target precision/false route visits у `detected_tsp` и `hybrid_final_v1`.
+
+5. Добавить физическую sensitivity по `collect_radius_m`, `bin_capacity_kg`, `speed_mps`.
+
+6. Только после этого запускать финальный 30-seed confirmatory-run.
 
 ## Следующий рабочий шаг
 

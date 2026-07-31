@@ -5,6 +5,10 @@ from dataclasses import dataclass, replace
 from .config import PlannerMode, RunConfig, ScenarioName, scenario_config
 
 
+FINAL_HYBRID_LABEL = "hybrid_final_v1"
+FINAL_HYBRID_EXPLORE_ENTROPY_THRESHOLD = 0.24
+
+
 @dataclass(frozen=True)
 class ExperimentArm:
     label: str
@@ -14,11 +18,17 @@ class ExperimentArm:
 
 def build_confirmatory_arms() -> list[ExperimentArm]:
     return [
-        ExperimentArm(label="lawnmower", planner_mode="lawnmower"),
+        ExperimentArm(label="lawnmower_sparse", planner_mode="lawnmower_sparse"),
+        ExperimentArm(label="lawnmower_dense", planner_mode="lawnmower_dense"),
+        ExperimentArm(label="greedy", planner_mode="greedy"),
         ExperimentArm(label="active", planner_mode="active"),
         ExperimentArm(label="detected_tsp", planner_mode="detected_tsp"),
         ExperimentArm(label="hybrid_base", planner_mode="hybrid", hybrid_explore_entropy_threshold=0.18),
-        ExperimentArm(label="hybrid_candidate_v2", planner_mode="hybrid", hybrid_explore_entropy_threshold=0.24),
+        ExperimentArm(
+            label=FINAL_HYBRID_LABEL,
+            planner_mode="hybrid",
+            hybrid_explore_entropy_threshold=FINAL_HYBRID_EXPLORE_ENTROPY_THRESHOLD,
+        ),
     ]
 
 

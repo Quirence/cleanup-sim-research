@@ -12,7 +12,11 @@ from .simulation import run_simulation
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run one cleanup simulation.")
     p.add_argument("--scenario", choices=["clustered_base", "clustered_noisy", "uniform_base"], default="clustered_base")
-    p.add_argument("--mode", choices=["lawnmower", "greedy", "active", "detected_tsp"], default="active")
+    p.add_argument(
+        "--mode",
+        choices=["lawnmower", "lawnmower_sparse", "lawnmower_dense", "greedy", "active", "detected_tsp", "hybrid"],
+        default="active",
+    )
     p.add_argument("--seed", type=int, default=11)
     p.add_argument("--out-dir", type=Path, default=Path("out/cleanup_sim/single"))
     return p

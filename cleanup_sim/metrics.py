@@ -77,6 +77,16 @@ def map_quality(belief: np.ndarray, true_occ: np.ndarray, threshold: float = 0.5
     }
 
 
+def _prefixed_map_quality(quality: dict, prefix: str) -> dict:
+    return {
+        f"{prefix}_map_precision": quality["map_precision"],
+        f"{prefix}_map_recall": quality["map_recall"],
+        f"{prefix}_map_f1": quality["map_f1"],
+        f"{prefix}_map_iou": quality["map_iou"],
+        f"{prefix}_brier_score": quality["brier_score"],
+    }
+
+
 def summarize_run(
     scenario: str,
     mode: str,
@@ -98,8 +108,11 @@ def summarize_run(
     series: TimeSeries,
     belief: np.ndarray,
     true_occ: np.ndarray,
+    residual_true_occ: np.ndarray | None = None,
 ) -> dict:
-    quality = map_quality(belief, true_occ)
+    residual_occ = true_occ if residual_true_occ is None else residual_true_occ
+    initial_quality = map_quality(belief, true_occ)
+    residual_quality = map_quality(belief, residual_occ)
     collected_ratios = [count / max(1, total_debris) for count in series.collected]
     auc_budget_m = path_budget_m if path_budget_m is not None else path_m
     out = {
@@ -135,5 +148,14 @@ def summarize_run(
             collected_ratios,
             float(budget_m),
         )
-    out.update(quality)
+    out.update(_prefixed_map_quality(initial_quality, "initial"))
+    out.update(_prefixed_map_quality(residual_quality, "residual"))
+    out.update({
+        "map_precision": residual_quality["map_precision"],
+        "map_recall": residual_quality["map_recall"],
+        "map_f1": residual_quality["map_f1"],
+        "map_iou": residual_quality["map_iou"],
+        "brier_score": residual_quality["brier_score"],
+        "final_entropy": residual_quality["final_entropy"],
+    })
     return out

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Literal
 
@@ -8,6 +8,8 @@ from typing import Literal
 DistributionMode = Literal["clustered", "uniform"]
 PlannerMode = Literal[
     "lawnmower",
+    "lawnmower_sparse",
+    "lawnmower_dense",
     "greedy",
     "active",
     "detected_tsp",
@@ -108,7 +110,6 @@ class PlannerConfig:
     detected_nms_radius_m: float = 6.0
     detected_batch_size: int = 10
     hybrid_min_confirmed_targets: int = 3
-    hybrid_switch_prob: float = 0.72
     hybrid_explore_entropy_threshold: float = 0.18
     hybrid_target_batch_size: int = 8
     target_confirm_hits: int = 2
@@ -161,6 +162,10 @@ def scenario_config(name: ScenarioName, seed: int, mode: PlannerMode) -> RunConf
         world = WorldConfig(distribution="uniform")
 
     planner = PlannerConfig(mode=mode)
+    if mode == "lawnmower_dense":
+        planner = replace(planner, coverage_spacing_m=10.0)
+    elif mode == "lawnmower_sparse":
+        planner = replace(planner, coverage_spacing_m=22.0)
     return RunConfig(seed=seed, scenario=name, world=world, fusion=fusion, planner=planner)
 
 

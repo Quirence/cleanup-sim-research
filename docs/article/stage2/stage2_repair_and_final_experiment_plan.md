@@ -10,16 +10,22 @@
 
 ## Основное решение после аудита
 
-Финальную серию запускать рано.
+Финальную серию запускать все еще рано, но P0-артефакты baseline-ов и метрик закрыты.
 
-Причина: аудит выявил проблемы, которые могут исказить выводы:
+Закрыто после P0-ремонта:
 
-- coverage baseline был слабым из-за слишком большого шага галсов;
-- greedy baseline может залипать;
-- метрика карты смешивает исходное и остаточное загрязнение;
+- coverage baseline разделен на `lawnmower_sparse` и `lawnmower_dense`;
+- greedy baseline больше не залипает на текущей argmax-ячейке;
+- метрики карты разделены на `initial_*` и `residual_*`;
+- active baseline больше не fallback-ится в `greedy`;
+- `hybrid_final_v1` заморожен как final-arm;
+- старые draft/result документы помечены как исторические.
+
+Остается до финальной серии:
+
 - часть статистики анти-консервативна для малых n;
 - active score зависит от разрешения сетки;
-- `hybrid_switch_prob` не используется.
+- требуется физическая sensitivity и проверка target precision.
 
 ## Блок A. Ремонт baseline-ов
 
@@ -37,9 +43,9 @@
 
 Acceptance:
 
-- оба режима проходят около `max_path_m`;
-- dense coverage собирает существенно больше sparse при uniform debris;
-- в статье ясно указано, какой coverage baseline используется.
+- закрыто: оба режима реализованы и проходят smoke;
+- dense coverage собирает больше sparse в диагностическом smoke;
+- в статье нужно ясно указать, какой coverage baseline используется.
 
 ### A2. Greedy baseline
 
@@ -56,8 +62,7 @@ Greedy может выбирать текущую argmax-ячейку и зал�
 
 Acceptance:
 
-- `greedy` проходит значимый путь до бюджета;
-- stop_reason не превращается в time_budget при почти нулевом path;
+- закрыто: `greedy` проходит path budget в 5-seed smoke;
 - результат greedy можно трактовать как свойство стратегии, а не баг.
 
 ## Блок B. Ремонт метрик
@@ -79,8 +84,8 @@ Acceptance:
 
 Acceptance:
 
-- эффективный сбор не ухудшает автоматически residual-map метрики;
-- таблица статьи не смешивает detection-quality и current-state-quality.
+- закрыто: summary содержит `initial_*` и `residual_*`;
+- таблица статьи не должна смешивать detection-quality и current-state-quality.
 
 ### B2. Path-normalized метрики
 
@@ -97,18 +102,9 @@ Acceptance:
 
 ### C1. `hybrid_switch_prob`
 
-Проблема:
+Статус: закрыто.
 
-Параметр есть в конфиге, но не используется.
-
-Решение:
-
-- удалить параметр и тест, если не нужен;
-- либо встроить его в правило переключения как осмысленный threshold.
-
-Предпочтение:
-
-Удалить, если не появится строгая интерпретация.
+Параметр удален из `PlannerConfig` и тестов. Правило hybrid теперь описывается через `hybrid_min_confirmed_targets` и `hybrid_explore_entropy_threshold`.
 
 ### C2. Active score normalization
 
@@ -153,11 +149,11 @@ Acceptance:
 - финальная статья опирается на 30 seed;
 - NaN threshold values не исчезают молча из анализа.
 
-## Блок E. Диагностика candidate-v2
+## Блок E. Диагностика `hybrid_final_v1`
 
 Проблема:
 
-В `clustered_base` у `hybrid_candidate_v2` в pilot были `time_budget` завершения при среднем пути меньше 6000 м.
+В старом pilot у candidate-v2 были `time_budget` завершения при среднем пути меньше 6000 м. После P0-ремонта final-arm зафиксирован как `hybrid_final_v1`.
 
 Нужно:
 
@@ -167,7 +163,7 @@ Acceptance:
 
 Acceptance:
 
-- candidate-v2 доходит до path budget;
+- `hybrid_final_v1` доходит до path budget;
 - либо в статье явно объясняется, почему используется time budget.
 
 ## Финальная серия после ремонта
@@ -175,11 +171,12 @@ Acceptance:
 Минимальный набор стратегий:
 
 - `lawnmower_dense`;
-- `greedy_fixed`;
+- `lawnmower_sparse`;
+- `greedy`;
 - `active`;
 - `detected_tsp`;
 - `hybrid_base`;
-- `hybrid_candidate_v2`.
+- `hybrid_final_v1`.
 
 Сценарии:
 

@@ -1,5 +1,8 @@
 # Confirmatory hybrid v2 pilot
 
+> **Статус на 2026-07-31: исторический pilot, не финальные результаты.**
+> Числа из этого файла нельзя цитировать как актуальные после P0-ремонта: `greedy` был исправлен, `lawnmower` разделен на sparse/dense, active fallback очищен от greedy, а map quality разделена на initial/residual. Для новой статьи нужен свежий confirmatory-run с `hybrid_final_v1`.
+
 Дата: 2026-07-31
 
 Цель: проверить candidate-v2 настройку `hybrid` после sensitivity-анализа и после исправления двух методических проблем:

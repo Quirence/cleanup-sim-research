@@ -18,6 +18,7 @@ def save_result(result: SimulationResult, out_dir: Path, prefix: str) -> dict[st
         "path": out_dir / f"{prefix}_path.npy",
         "belief": out_dir / f"{prefix}_belief.npy",
         "true_occ": out_dir / f"{prefix}_true_occ.npy",
+        "residual_true_occ": out_dir / f"{prefix}_residual_true_occ.npy",
         "config": out_dir / f"{prefix}_config.json",
     }
     paths["summary"].write_text(json.dumps(result.summary, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -27,4 +28,5 @@ def save_result(result: SimulationResult, out_dir: Path, prefix: str) -> dict[st
     np.save(paths["path"], result.path)
     np.save(paths["belief"], result.belief)
     np.save(paths["true_occ"], result.true_occ)
+    np.save(paths["residual_true_occ"], result.residual_true_occ)
     return paths

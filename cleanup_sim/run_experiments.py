@@ -15,8 +15,21 @@ from .statistics import paired_comparison_table
 
 
 DEFAULT_SCENARIOS: list[ScenarioName] = ["clustered_base", "clustered_noisy", "uniform_base"]
-DEFAULT_MODES: list[PlannerMode] = [
+MODE_CHOICES: list[PlannerMode] = [
     "lawnmower",
+    "lawnmower_sparse",
+    "lawnmower_dense",
+    "greedy",
+    "active_entropy",
+    "active_probability",
+    "active_no_distance",
+    "active",
+    "detected_tsp",
+    "hybrid",
+]
+DEFAULT_MODES: list[PlannerMode] = [
+    "lawnmower_sparse",
+    "lawnmower_dense",
     "greedy",
     "active_entropy",
     "active_probability",
@@ -32,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seeds", type=int, default=30, help="Number of seeds per scenario and mode.")
     p.add_argument("--out-dir", type=Path, default=Path("out/cleanup_sim/experiments"))
     p.add_argument("--scenarios", nargs="*", choices=DEFAULT_SCENARIOS, default=DEFAULT_SCENARIOS)
-    p.add_argument("--modes", nargs="*", choices=DEFAULT_MODES, default=DEFAULT_MODES)
+    p.add_argument("--modes", nargs="*", choices=MODE_CHOICES, default=DEFAULT_MODES)
     p.add_argument("--plot-examples", action="store_true", help="Save single-run plots for seed 0 of every scenario/mode.")
     p.add_argument("--tmax-s", type=float, default=None, help="Optional simulation time limit override for smoke runs.")
     p.add_argument("--max-path-m", type=float, default=None, help="Optional path budget override for smoke runs.")
@@ -61,6 +74,12 @@ def aggregate_summary(summary: pd.DataFrame) -> pd.DataFrame:
         "map_f1",
         "map_iou",
         "brier_score",
+        "initial_map_f1",
+        "initial_map_iou",
+        "initial_brier_score",
+        "residual_map_f1",
+        "residual_map_iou",
+        "residual_brier_score",
         "final_entropy",
         "auc_collected_by_path",
         "collected_ratio_at_2km",

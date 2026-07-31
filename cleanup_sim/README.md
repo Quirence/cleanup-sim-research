@@ -40,7 +40,7 @@ python -m cleanup_sim.run_experiments `
 python -m cleanup_sim.run_experiments `
   --seeds 30 `
   --scenarios clustered_base clustered_noisy uniform_base `
-  --modes lawnmower greedy active_entropy active_probability active_no_distance active detected_tsp hybrid `
+  --modes lawnmower_sparse lawnmower_dense greedy active_entropy active_probability active_no_distance active detected_tsp hybrid `
   --out-dir out/cleanup_sim/hybrid_experiments `
   --plot-examples
 ```
@@ -49,7 +49,9 @@ python -m cleanup_sim.run_experiments `
 
 ## Стратегии
 
-- `lawnmower`: равномерное serpentine-покрытие.
+- `lawnmower_sparse`: разреженное serpentine-покрытие с шагом `22 м`.
+- `lawnmower_dense`: плотное serpentine-покрытие с шагом `10 м`, согласованным с `collect_radius_m = 5 м`.
+- `lawnmower`: legacy alias для старых запусков.
 - `greedy`: движение к максимуму текущей карты вероятностей.
 - `active_entropy`: абляция, использует энтропию карты и штраф расстояния.
 - `active_probability`: абляция, использует вероятность мусора и штраф расстояния.
@@ -83,10 +85,11 @@ mean_entropy <= hybrid_explore_entropy_threshold
 Candidate-v2 для дальнейшей проверки:
 
 ```text
-hybrid_explore_entropy_threshold = 0.24
+hybrid_final_v1:
+  hybrid_explore_entropy_threshold = 0.24
 ```
 
-Базовый `PlannerConfig` пока не изменен, чтобы не смешивать baseline и candidate-настройку.
+Базовый `PlannerConfig` пока не изменен, чтобы не смешивать baseline и final-arm настройку. Для confirmatory/final-run использовать `python -m cleanup_sim.run_confirmatory`, где `hybrid_final_v1` сохранен как отдельная именованная ветка.
 
 ## Выходные файлы
 
@@ -107,7 +110,10 @@ hybrid_explore_entropy_threshold = 0.24
 - число попыток route-визита;
 - успешные и ложные route-визиты;
 - target precision;
-- Brier score, F1, IoU и итоговая энтропия карты.
+- `initial_map_f1`, `initial_map_iou`, `initial_brier_score`: качество карты относительно исходного загрязнения.
+- `residual_map_f1`, `residual_map_iou`, `residual_brier_score`: качество карты относительно остаточного загрязнения после сбора.
+- `map_f1`, `map_iou`, `brier_score`: legacy alias к residual-метрикам.
+- итоговая энтропия карты.
 
 `false_visits` считается как `target_visit_false`: это не любой arrival без сбора, а только визит к подтвержденной цели в режиме маршрутизации, после которого мусор не был собран.
 

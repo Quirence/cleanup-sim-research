@@ -13,6 +13,7 @@ from .planners import (
     choose_next_goal,
     lawnmower_route,
     pop_arrived_route_goal,
+    suppress_greedy_region,
     update_detected_targets,
 )
 from .sensors import apply_fusion_update
@@ -27,6 +28,7 @@ class SimulationResult:
     path: np.ndarray
     belief: np.ndarray
     true_occ: np.ndarray
+    residual_true_occ: np.ndarray
     events: pd.DataFrame
     series: pd.DataFrame
     summary: dict
@@ -133,7 +135,10 @@ def run_simulation(config: RunConfig) -> SimulationResult:
             current_planner_mode = "return"
 
         if current_goal is None or np.linalg.norm(current_goal - pos) <= config.robot.arrival_tolerance_m:
-            arrived_route_goal = current_goal is not None and current_planner_mode == "route"
+            arrived_goal = current_goal is not None and np.linalg.norm(current_goal - pos) <= config.robot.arrival_tolerance_m
+            arrived_route_goal = arrived_goal and current_planner_mode == "route"
+            if arrived_goal and current_planner_mode == "greedy":
+                suppress_greedy_region(state, prob_map, current_goal, config.robot.collect_radius_m)
             if current_goal is not None and np.linalg.norm(current_goal - pos) <= config.robot.collect_radius_m:
                 collected_events, bin_load = _collect_nearby(field, pos, config.robot.collect_radius_m, bin_load)
                 collected_this_tick += len(collected_events)
@@ -201,6 +206,7 @@ def run_simulation(config: RunConfig) -> SimulationResult:
             break
 
     path_arr = np.asarray(path)
+    residual_true_occ = true_occupancy(field, grid.x_edges, grid.y_edges, include_collected=False)
     events_df = pd.DataFrame(events)
     series_df = pd.DataFrame({
         "time_s": ts.time_s,
@@ -232,6 +238,7 @@ def run_simulation(config: RunConfig) -> SimulationResult:
         series=ts,
         belief=prob_map.belief,
         true_occ=true_occ,
+        residual_true_occ=residual_true_occ,
     )
     return SimulationResult(
         config=config,
@@ -239,6 +246,7 @@ def run_simulation(config: RunConfig) -> SimulationResult:
         path=path_arr,
         belief=prob_map.belief.copy(),
         true_occ=true_occ,
+        residual_true_occ=residual_true_occ,
         events=events_df,
         series=series_df,
         summary=summary,

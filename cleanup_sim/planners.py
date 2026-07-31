@@ -17,6 +17,8 @@ class PlannerState:
     coverage_index: int = 0
     current_route: list[np.ndarray] | None = None
     last_replan_t: float = -1e9
+    greedy_suppressed_mask: np.ndarray | None = None
+    active_goal: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         if self.current_route is None:
@@ -78,8 +80,36 @@ def next_lawnmower(state: PlannerState) -> np.ndarray:
     return target
 
 
-def next_greedy(prob_map: ProbabilityMap) -> np.ndarray:
-    iy, ix = np.unravel_index(int(np.argmax(prob_map.belief)), prob_map.belief.shape)
+def suppress_greedy_region(
+    state: PlannerState,
+    prob_map: ProbabilityMap,
+    position: np.ndarray,
+    radius_m: float,
+) -> None:
+    if state.greedy_suppressed_mask is None or state.greedy_suppressed_mask.shape != prob_map.belief.shape:
+        state.greedy_suppressed_mask = np.zeros_like(prob_map.belief, dtype=bool)
+    distance = np.hypot(prob_map.grid.xx - position[0], prob_map.grid.yy - position[1])
+    state.greedy_suppressed_mask |= distance <= radius_m
+
+
+def next_greedy(
+    prob_map: ProbabilityMap,
+    current: np.ndarray,
+    state: PlannerState,
+    exclude_radius_m: float,
+) -> np.ndarray:
+    scores = prob_map.belief.copy()
+    if state.greedy_suppressed_mask is not None and state.greedy_suppressed_mask.shape == scores.shape:
+        scores[state.greedy_suppressed_mask] = -np.inf
+    local_distance = np.hypot(prob_map.grid.xx - current[0], prob_map.grid.yy - current[1])
+    scores[local_distance <= exclude_radius_m] = -np.inf
+    if not np.isfinite(scores).any():
+        state.greedy_suppressed_mask = np.zeros_like(prob_map.belief, dtype=bool)
+        scores = prob_map.belief.copy()
+        scores[local_distance <= exclude_radius_m] = -np.inf
+    if not np.isfinite(scores).any():
+        scores = prob_map.belief
+    iy, ix = np.unravel_index(int(np.argmax(scores)), scores.shape)
     return np.array([prob_map.grid.x_centers[ix], prob_map.grid.y_centers[iy]], dtype=float)
 
 
@@ -152,10 +182,10 @@ def choose_next_goal(
 ) -> tuple[np.ndarray, str]:
     if state.current_route:
         return state.current_route[0], "route"
-    if planner.mode == "lawnmower":
+    if planner.mode in {"lawnmower", "lawnmower_sparse", "lawnmower_dense"}:
         return next_lawnmower(state), "coverage"
     if planner.mode == "greedy":
-        return next_greedy(prob_map), "greedy"
+        return next_greedy(prob_map, current, state, robot.collect_radius_m), "greedy"
     if planner.mode == "detected_tsp":
         confirmed_targets = target_queue.confirmed_targets()
         if confirmed_targets:
@@ -173,10 +203,16 @@ def choose_next_goal(
                 return state.current_route[0], decision.value
         return next_active(current, heading, prob_map, world, planner, fusion), decision.value
     active_modes = {"active", "active_entropy", "active_probability", "active_no_distance"}
-    if planner.mode in active_modes and t - state.last_replan_t >= planner.replan_interval_s:
-        state.last_replan_t = t
-        return next_active(current, heading, prob_map, world, planner, fusion), "active"
-    return next_greedy(prob_map), "greedy"
+    if planner.mode in active_modes:
+        active_goal_reached = (
+            state.active_goal is not None
+            and np.linalg.norm(state.active_goal - current) <= robot.arrival_tolerance_m
+        )
+        if state.active_goal is None or active_goal_reached or t - state.last_replan_t >= planner.replan_interval_s:
+            state.last_replan_t = t
+            state.active_goal = next_active(current, heading, prob_map, world, planner, fusion)
+        return state.active_goal, "active"
+    return next_greedy(prob_map, current, state, robot.collect_radius_m), "greedy"
 
 
 def pop_arrived_route_goal(

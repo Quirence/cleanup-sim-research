@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from .config import ScenarioName, ensure_output_dir
-from .confirmatory import build_confirmatory_arms, config_for_arm
+from .confirmatory import FINAL_HYBRID_LABEL, build_confirmatory_arms, config_for_arm
 from .io import save_result
 from .run_experiments import aggregate_summary
 from .simulation import run_simulation
@@ -34,7 +34,7 @@ def _write_tables(out_dir: Path, summaries: list[dict]) -> None:
     summary_df.to_csv(out_dir / "summary_partial.csv", index=False)
     if not summary_df.empty:
         aggregate_summary(summary_df).to_csv(out_dir / "aggregate_partial.csv", index=False)
-        paired_comparison_table(summary_df, reference_mode="hybrid_candidate_v2").to_csv(
+        paired_comparison_table(summary_df, reference_mode=FINAL_HYBRID_LABEL).to_csv(
             out_dir / "paired_partial.csv",
             index=False,
         )
@@ -60,7 +60,9 @@ def main() -> None:
                 summary = dict(result.summary)
                 summary["mode"] = arm.label
                 summary["planner_mode_internal"] = cfg.planner.mode
-                summary["hybrid_explore_entropy_threshold"] = cfg.planner.hybrid_explore_entropy_threshold
+                summary["hybrid_explore_entropy_threshold"] = (
+                    cfg.planner.hybrid_explore_entropy_threshold if cfg.planner.mode == "hybrid" else None
+                )
                 summaries.append(summary)
 
                 if run_dir is not None:
@@ -74,7 +76,7 @@ def main() -> None:
 
     summary_df = pd.DataFrame(summaries)
     aggregate_df = aggregate_summary(summary_df)
-    comparisons_df = paired_comparison_table(summary_df, reference_mode="hybrid_candidate_v2")
+    comparisons_df = paired_comparison_table(summary_df, reference_mode=FINAL_HYBRID_LABEL)
     summary_path = out_dir / "summary.csv"
     aggregate_path = out_dir / "aggregate_mean_std.csv"
     comparisons_path = out_dir / "paired_comparisons.csv"
@@ -89,7 +91,8 @@ def main() -> None:
                 "arms": [arm.__dict__ for arm in arms],
                 "tmax_s": args.tmax_s,
                 "max_path_m": args.max_path_m,
-                "purpose": "confirm hybrid candidate-v2 before final 30-seed experiment",
+                "reference_mode": FINAL_HYBRID_LABEL,
+                "purpose": "confirm frozen hybrid_final_v1 before or during final 30-seed experiment",
             },
             ensure_ascii=False,
             indent=2,
