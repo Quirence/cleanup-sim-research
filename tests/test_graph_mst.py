@@ -191,3 +191,88 @@ def test_graph_mst_excluded_from_default_experiment_modes() -> None:
     from cleanup_sim.run_experiments import DEFAULT_MODES
 
     assert "graph_mst" not in DEFAULT_MODES
+
+
+def test_choose_next_goal_hybrid_mst_explores_when_switch_selects_explore() -> None:
+    cfg = scenario_config("clustered_base", 0, "hybrid_mst")
+    grid = make_grid(cfg.world, cfg.grid)
+    prob_map = init_probability_map(grid, cfg.grid)
+    state = PlannerState(coverage_route=lawnmower_route(cfg.world, cfg.planner))
+    target_queue = _empty_target_queue(cfg)
+
+    goal, label = choose_next_goal(
+        t=0.0,
+        current=np.array(cfg.world.depot, dtype=float),
+        heading=0.0,
+        state=state,
+        prob_map=prob_map,
+        world=cfg.world,
+        robot=cfg.robot,
+        planner=cfg.planner,
+        fusion=cfg.fusion,
+        target_queue=target_queue,
+    )
+
+    assert label == "explore"
+    assert not state.current_route
+
+
+def test_choose_next_goal_hybrid_mst_routes_via_mst_not_nearest_neighbor() -> None:
+    cfg = scenario_config("clustered_base", 0, "hybrid_mst")
+    grid = make_grid(cfg.world, cfg.grid)
+    prob_map = init_probability_map(grid, cfg.grid)
+    prob_map.belief.fill(0.02)
+    state = PlannerState(coverage_route=lawnmower_route(cfg.world, cfg.planner))
+    target_queue = _empty_target_queue(cfg)
+    # Same branching layout as test_mst_route_differs_from_nearest_neighbor_on_branching_layout,
+    # translated by the depot offset (10, 100) so the MST/NN divergence (which is only
+    # guaranteed relative to a (0, 0) start) is preserved when routing starts at cfg.world.depot.
+    positions = [(48.1, 143.0), (58.9, 197.6), (87.6, 130.9), (37.0, 186.3), (98.1, 151.1)]
+    for pos in positions:
+        det_camera = Detection(sensor="camera", position=np.array(pos), confidence=0.9, source_index=None)
+        det_radar = Detection(sensor="radar", position=np.array(pos), confidence=0.9, source_index=None)
+        target_queue.add_detections([det_camera], t=0.0, world=cfg.world)
+        target_queue.add_detections([det_radar], t=1.0, world=cfg.world)
+    confirmed = target_queue.confirmed_targets()
+    assert len(confirmed) == 5
+    start = np.array(cfg.world.depot, dtype=float)
+
+    goal, label = choose_next_goal(
+        t=0.0,
+        current=start,
+        heading=0.0,
+        state=state,
+        prob_map=prob_map,
+        world=cfg.world,
+        robot=cfg.robot,
+        planner=cfg.planner,
+        fusion=cfg.fusion,
+        target_queue=target_queue,
+    )
+
+    assert label == "route"
+    mst_order = [tuple(p) for p in mst_route(start, confirmed, cfg.planner.hybrid_target_batch_size)]
+    nn_order = [tuple(p) for p in nearest_neighbor_route(start, confirmed, cfg.planner.hybrid_target_batch_size)]
+    actual_order = [tuple(p) for p in state.current_route]
+    assert actual_order == mst_order
+    assert actual_order != nn_order
+    assert np.allclose(goal, mst_order[0])
+
+
+def test_should_invalidate_graph_route_also_covers_hybrid_mst() -> None:
+    assert should_invalidate_graph_route("hybrid_mst", "route", [object()]) is True
+    assert should_invalidate_graph_route("hybrid_mst", "route", []) is False
+    assert should_invalidate_graph_route("hybrid_mst", "explore", [object()]) is False
+    assert should_invalidate_graph_route("hybrid", "route", [object()]) is False
+
+
+def test_hybrid_mst_mode_runs_full_simulation_and_records_route_events() -> None:
+    cfg = scenario_config("clustered_base", 4, "hybrid_mst")
+    cfg = replace(cfg, robot=replace(cfg.robot, tmax_s=1200.0))
+    result = run_simulation(cfg)
+
+    assert result.summary["mode"] == "hybrid_mst"
+    assert np.all(result.belief >= 0.0)
+    assert np.all(result.belief <= 1.0)
+    assert "planner_mode" in result.series.columns
+    assert set(result.series["planner_mode"].dropna()).issubset({"explore", "route", "return"})

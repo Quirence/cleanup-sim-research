@@ -261,6 +261,15 @@ def choose_next_goal(
             if state.current_route:
                 return state.current_route[0], decision.value
         return next_active(current, heading, prob_map, world, planner, fusion), decision.value
+    if planner.mode == "hybrid_mst":
+        confirmed_targets = target_queue.confirmed_targets()
+        mean_entropy = float(np.mean(entropy(prob_map.belief)))
+        decision = choose_hybrid_mode(mean_entropy, len(confirmed_targets), planner)
+        if decision == HybridDecision.ROUTE and confirmed_targets:
+            state.current_route = mst_route(current, confirmed_targets, planner.hybrid_target_batch_size)
+            if state.current_route:
+                return state.current_route[0], decision.value
+        return next_active(current, heading, prob_map, world, planner, fusion), decision.value
     active_modes = {"active", "active_entropy", "active_probability", "active_no_distance"}
     if planner.mode in active_modes:
         active_goal_reached = (
@@ -288,4 +297,4 @@ def pop_arrived_route_goal(
 
 
 def should_invalidate_graph_route(mode: str, goal_label: str, confirmations: list[TargetTrack]) -> bool:
-    return mode == "graph_mst" and goal_label == "route" and bool(confirmations)
+    return mode in {"graph_mst", "hybrid_mst"} and goal_label == "route" and bool(confirmations)

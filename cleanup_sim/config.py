@@ -15,6 +15,7 @@ PlannerMode = Literal[
     "detected_tsp",
     "graph_mst",
     "hybrid",
+    "hybrid_mst",
     "active_entropy",
     "active_probability",
     "active_no_distance",
