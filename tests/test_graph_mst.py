@@ -276,3 +276,17 @@ def test_hybrid_mst_mode_runs_full_simulation_and_records_route_events() -> None
     assert np.all(result.belief <= 1.0)
     assert "planner_mode" in result.series.columns
     assert set(result.series["planner_mode"].dropna()).issubset({"explore", "route", "return"})
+
+
+def test_run_experiments_parser_accepts_hybrid_mst_mode() -> None:
+    from cleanup_sim.run_experiments import build_parser as build_experiments_parser
+
+    args = build_experiments_parser().parse_args(["--modes", "hybrid_mst"])
+    assert args.modes == ["hybrid_mst"]
+
+
+def test_run_once_parser_accepts_hybrid_mst_mode() -> None:
+    from cleanup_sim.run_once import build_parser as build_once_parser
+
+    args = build_once_parser().parse_args(["--mode", "hybrid_mst"])
+    assert args.mode == "hybrid_mst"

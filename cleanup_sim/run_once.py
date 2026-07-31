@@ -23,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
             "detected_tsp",
             "graph_mst",
             "hybrid",
+            "hybrid_mst",
         ],
         default="active",
     )
