@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local generated outputs
+out/
+_delete_later/
+
+# Source PDFs and private/local materials
+Материалы/
+
+# IDE and OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+~$*
+
+# Large binary artifacts
+*.mp4
+*.avi
+*.mov
+*.gif
+*.zip
+*.7z
+*.rar
