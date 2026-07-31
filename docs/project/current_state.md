@@ -69,6 +69,7 @@ python -m pytest -q
 - воспроизводимая установка через `pyproject.toml`, CI workflow и `docs/project/reproducibility_notes.md`;
 - active score зафиксирован как heuristic uncertainty-aware score, не expected information gain;
 - научная интерпретация pre-final smoke: `docs/article/stage2/prefinal_smoke_interpretation_decision.md`;
+- preregistration финального прогона: `docs/article/stage2/final_confirmatory_preregistration.md`;
 - повторяющийся coverage baseline;
 - подавление посещенных greedy-регионов;
 - разделенные метрики карты `initial_*` и `residual_*`.
@@ -148,6 +149,12 @@ P0-блокеры аудита закрыты:
 - подготовлена таблица платформенных и сенсорных параметров с внешними источниками;
 - зафиксировано, что симулятор не является цифровым двойником конкретного USV;
 - физическая sensitivity оставлена обязательным сопровождением финального результата.
+
+Закрыто по preregistration:
+
+- зафиксированы arms, scenarios, seed-ы, бюджеты, primary/secondary metrics и статистика;
+- `hybrid_final_v1` запрещено менять после финального запуска;
+- финальный прогон по-прежнему не запускать до решения по P1-08.
 
 ## Следующий рабочий шаг
 
