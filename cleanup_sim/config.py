@@ -13,6 +13,7 @@ PlannerMode = Literal[
     "greedy",
     "active",
     "detected_tsp",
+    "graph_mst",
     "hybrid",
     "active_entropy",
     "active_probability",

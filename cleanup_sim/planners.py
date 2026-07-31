@@ -245,6 +245,13 @@ def choose_next_goal(
             if state.current_route:
                 return state.current_route[0], "route"
         return next_lawnmower(state), "coverage"
+    if planner.mode == "graph_mst":
+        confirmed_targets = target_queue.confirmed_targets()
+        if confirmed_targets:
+            state.current_route = mst_route(current, confirmed_targets, planner.detected_batch_size)
+            if state.current_route:
+                return state.current_route[0], "route"
+        return next_lawnmower(state), "coverage"
     if planner.mode == "hybrid":
         confirmed_targets = target_queue.confirmed_targets()
         mean_entropy = float(np.mean(entropy(prob_map.belief)))
