@@ -14,6 +14,8 @@ from cleanup_sim_v2.config import (
     scenario_config,
 )
 from cleanup_sim_v2.hydrodynamics import drift_debris
+from cleanup_sim_v2.planners import make_coverage_route
+from cleanup_sim_v2.run_experiments import BASELINE_MODES, build_parser as build_experiment_parser
 from cleanup_sim_v2.sensors import detect_with_sensor
 from cleanup_sim_v2.simulation import run_simulation
 from cleanup_sim_v2.world import DebrisField, make_debris_field
@@ -149,3 +151,26 @@ def test_greedy_gets_empty_goal_metrics_like_other_modes() -> None:
     assert result.summary["mode"] == "greedy"
     assert result.summary["empty_goal_arrivals"] > 0
     assert result.summary["wasted_path_to_empty_goals"] > 0.0
+
+
+def test_lawnmower_survey_and_collect_have_different_physical_spacing() -> None:
+    survey = scenario_config("static_calm", 0, "lawnmower_survey")
+    collect = scenario_config("static_calm", 0, "lawnmower_collect")
+    assert survey.planner.coverage_spacing_m > collect.platform.collection_width_m
+    assert collect.planner.coverage_spacing_m <= collect.platform.collection_width_m
+
+
+def test_lawnmower_route_uses_transect_endpoints_not_grid_waypoints() -> None:
+    cfg = scenario_config("static_calm", 0, "lawnmower_survey")
+    route = make_coverage_route(cfg.world, cfg.planner)
+    assert len(route) % 2 == 0
+    assert np.allclose(route[0], [cfg.planner.coverage_margin_m, cfg.planner.coverage_margin_m])
+    assert np.isclose(route[1][0], cfg.world.width_m - cfg.planner.coverage_margin_m)
+    assert np.isclose(route[0][1], route[1][1])
+
+
+def test_v2_baseline_parser_accepts_named_lawnmower_modes() -> None:
+    args = build_experiment_parser().parse_args(["--baseline-only", "--seeds", "1"])
+    assert args.baseline_only is True
+    assert "lawnmower_survey" in BASELINE_MODES
+    assert "lawnmower_collect" in BASELINE_MODES

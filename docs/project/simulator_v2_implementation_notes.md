@@ -38,6 +38,18 @@ Smoke-серия:
 python -m cleanup_sim_v2.run_experiments --seeds 3 --scenarios static_calm weak_drift strong_drift robot_disturbed --modes coverage greedy active confirmed_route --out-dir out/cleanup_sim_v2/smoke_v2
 ```
 
+Baseline-серия:
+
+```powershell
+python -m cleanup_sim_v2.run_experiments --baseline-only --seeds 10 --max-path-m 3600 --tmax-s 9000 --out-dir out/cleanup_sim_v2/baseline_v2_10seeds_2026-08-01
+```
+
+Именованные baseline-режимы:
+
+- `lawnmower_survey` - галсовое сенсорное обследование;
+- `lawnmower_collect` - плотный физический сбор с шагом по ширине сборщика;
+- `greedy` - жадное движение к максимуму текущей density-map.
+
 ## Текущий научный статус
 
 `cleanup_sim_v2` - первая реализованная основа новой постановки, а не финальный симулятор для статьи. Ее задача сейчас:

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, replace
 from typing import Literal
 
 
 DistributionMode = Literal["clustered", "uniform"]
 ScenarioName = Literal["static_calm", "weak_drift", "strong_drift", "robot_disturbed"]
-PlannerMode = Literal["coverage", "greedy", "active", "confirmed_route"]
+PlannerMode = Literal["coverage", "lawnmower_survey", "lawnmower_collect", "greedy", "active", "confirmed_route"]
 ParameterProfile = Literal["low", "nominal", "high"]
 
 
@@ -115,7 +116,7 @@ class SensorSuiteConfig:
 @dataclass(frozen=True)
 class PlannerConfig:
     mode: PlannerMode = "active"
-    coverage_spacing_m: float = 8.0
+    coverage_spacing_m: float = 14.0
     coverage_margin_m: float = 6.0
     candidate_spacing_m: float = 20.0
     replan_interval_s: float = 45.0
@@ -206,6 +207,12 @@ def _profile_sensors(profile: ParameterProfile, base: SensorSuiteConfig) -> Sens
     return base
 
 
+def survey_lawnmower_spacing_m(sensors: SensorSuiteConfig) -> float:
+    camera = sensors.camera
+    effective_swath = 2.0 * camera.decay_range_m * math.sin(math.radians(camera.fov_deg) * 0.5)
+    return max(4.0, 0.70 * effective_swath)
+
+
 def scenario_config(
     name: ScenarioName,
     seed: int,
@@ -248,6 +255,10 @@ def scenario_config(
     platform = _profile_platform(profile, PlatformConfig())
     sensors = _profile_sensors(profile, SensorSuiteConfig())
     planner = PlannerConfig(mode=mode)
+    if mode in {"coverage", "lawnmower_survey"}:
+        planner = replace(planner, coverage_spacing_m=survey_lawnmower_spacing_m(sensors))
+    elif mode == "lawnmower_collect":
+        planner = replace(planner, coverage_spacing_m=max(0.25, 0.8 * platform.collection_width_m))
     return RunConfig(
         seed=seed,
         scenario=name,

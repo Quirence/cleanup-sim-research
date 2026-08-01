@@ -20,13 +20,17 @@ class PlannerState:
 
 
 def make_coverage_route(world: WorldConfig, planner: PlannerConfig) -> list[np.ndarray]:
-    xs = np.arange(planner.coverage_margin_m, world.width_m - planner.coverage_margin_m + 1e-9, planner.coverage_spacing_m)
     ys = np.arange(planner.coverage_margin_m, world.height_m - planner.coverage_margin_m + 1e-9, planner.coverage_spacing_m)
+    x_min = planner.coverage_margin_m
+    x_max = world.width_m - planner.coverage_margin_m
     route: list[np.ndarray] = []
     for j, y in enumerate(ys):
-        x_iter = xs if j % 2 == 0 else xs[::-1]
-        for x in x_iter:
-            route.append(np.array([x, y], dtype=float))
+        if j % 2 == 0:
+            route.append(np.array([x_min, y], dtype=float))
+            route.append(np.array([x_max, y], dtype=float))
+        else:
+            route.append(np.array([x_max, y], dtype=float))
+            route.append(np.array([x_min, y], dtype=float))
     return route or [np.array(world.depot, dtype=float)]
 
 
@@ -117,7 +121,7 @@ def choose_goal(
 ) -> tuple[np.ndarray, str]:
     if state.current_route:
         return state.current_route[0].copy(), "route"
-    if planner.mode == "coverage":
+    if planner.mode in {"coverage", "lawnmower_survey", "lawnmower_collect"}:
         return next_coverage(state), "coverage"
     if planner.mode == "greedy":
         return next_greedy(state, density_map, current, platform), "greedy"

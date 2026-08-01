@@ -39,7 +39,8 @@
 | `radar.range_m` | `45` | `36 / 55` | mmWave/radar-like abstraction | дальний, но более шумный источник |
 | `radar.p_detect_max` | `0.62` | `0.50 / 0.72` | calibrated assumption | должен проверяться sensitivity |
 | `radar.clutter_rate_per_m2` | `7.5e-5` | `1.3e-4 / 4e-5` | calibrated assumption | ожидаемо выше camera clutter |
-| `planner.coverage_spacing_m` | `8` | future sensitivity | matched to `collection_width`, not magic radius | coverage больше не гарантирует сбор полосой 10 м |
+| `planner.coverage_spacing_m` для `lawnmower_survey` | около `14` | зависит от camera profile | camera effective swath assumption | сенсорное обследование, не физическое траление |
+| `planner.coverage_spacing_m` для `lawnmower_collect` | `0.8 * collection_width_m` | зависит от platform profile | collection aperture geometry | физически плотный сбор, но очень дорогой по длине маршрута |
 
 ## Границы заявлений
 
