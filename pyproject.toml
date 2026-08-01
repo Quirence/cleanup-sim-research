@@ -12,6 +12,7 @@ dependencies = [
   "matplotlib>=3.8",
   "numpy>=1.26",
   "pandas>=2.2",
+  "scipy>=1.14",
 ]
 
 [project.optional-dependencies]
@@ -20,7 +21,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["cleanup_sim*"]
+include = ["cleanup_sim*", "cleanup_sim_v2*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
