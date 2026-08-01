@@ -1,35 +1,44 @@
 # Текущее состояние проекта
 
-Дата: 2026-07-31
+Дата обновления: 2026-08-01.
 
 ## Рабочая тема
 
-Гибридное вероятностное планирование поиска и сбора плавающего мусора одиночным автономным надводным роботом при шумных и неполных наблюдениях.
+Симуляционное исследование планирования поиска и сбора плавающего мусора автономным надводным роботом при шумных и неполных наблюдениях.
 
-## Защитимая научная рамка
+Текущий научный фокус: не SLAM/NMHE/NMPC и не реальная CV-детекция, а честная постановка задачи `search-and-collection` с вероятностными наблюдениями, физически ограниченным сбором и сравнением стратегий относительно baseline и oracle-ориентиров.
 
-Текущая статья не должна заявляться как работа про SLAM, NMHE, NMPC, ROS/Gazebo или реальную CV-детекцию. Эти компоненты остаются внешним навигационным и аппаратным контекстом.
+## Основной код
 
-Защитимый вклад:
+Актуальный симулятор:
 
-1. Вероятностная карта загрязнений на occupancy grid.
-2. Вероятностная sensor fusion модель camera/radar.
-3. Сравнение режимов exploration, routing и hybrid switching.
-4. Анализ trade-off между сбором подтвержденных целей и ложными route-визитами.
-5. Воспроизводимый 2D-симуляционный протокол.
+```text
+cleanup_sim_v2/
+```
 
-Пока незащитимые сильные заявления:
+Legacy-код:
 
-- гибридный метод универсально лучше всех baseline;
-- реализован полноценный expected information gain;
-- реализована реальная компьютерная детекция мусора;
-- реализована навигационная SLAM/NMHE/NMPC-система.
+```text
+cleanup_sim/
+```
 
-## Актуальное состояние кода
+Старый симулятор и результаты до v2.1 не использовать как финальные результаты статьи.
 
-Основной модуль:
+## Что реализовано в v2.1
 
-`cleanup_sim/`
+- Object-level camera/radar-like sensor model с Poisson clutter.
+- Density/count-map с prediction step по модели дрейфа.
+- Лагранжев дрейф мусора: течение, windage, диффузия, опциональное отталкивание от робота.
+- Накопительный физический сбор в передней swept-aperture зоне.
+- Разделение cruise speed и collection speed.
+- Простая цена разворота и физические подшаги.
+- Жизненный цикл целей: подтверждение, старение, suppression после пустого визита.
+- Baseline-режимы: `lawnmower_survey`, `lawnmower_collect`, `greedy`, `confirmed_route`.
+- Oracle-режимы: `oracle_perfect_static`, `oracle_current_physics`, `oracle_route_heuristic`.
+- Нормализованные метрики пустых визитов, wasted path/time, capture/contact и sensor-level метрики.
+- `summary.csv`, `aggregate_mean_std.csv`, `run_manifest.json`, `config_hash`, `git_commit`, `git_dirty`.
+
+## Текущая проверка
 
 Тесты:
 
@@ -37,135 +46,42 @@
 python -m pytest -q
 ```
 
-Текущий результат:
+Актуальный результат после v2.1:
 
 ```text
-54 passed
+68 passed
 ```
 
-Ключевые реализованные компоненты:
+Smoke v2.1:
 
-- генерация clustered/uniform debris field;
-- camera/radar probabilistic detections;
-- Bayesian update карты вероятностей;
-- `TargetQueue` без oracle-доступа к истинной карте;
-- стратегии `lawnmower_sparse`, `lawnmower_dense`, legacy `lawnmower`, `greedy`, `active`, `detected_tsp`, `hybrid`;
-- ablation-режимы active score;
-- sensitivity runner;
-- confirmatory runner с замороженным reference-arm `hybrid_final_v1`;
-- path budget `max_path_m`;
-- path-normalized AUC по общему бюджету пути;
-- paired permutation statistics, Holm correction и effect size;
-- reach-rate/censored accounting для threshold metrics;
-- area-normalized active score terms;
-- multisensor target confirmation;
-- en-route route-target success accounting;
-- true/residual count-map diagnostics для контроля потери density-информации;
-- OFAT sensitivity around `hybrid_final_v1`;
-- physical sensitivity cases for `collect_radius_m`, `bin_capacity_kg`, `speed_mps`;
-- физическая интерпретация параметров и границы сенсорной модели: `docs/project/platform_sensor_parameter_notes.md`;
-- таблица параметров для методологии статьи: `docs/article/stage2/platform_sensor_parameter_table_for_article.md`;
-- статичность мусора и границы occupancy-map: `docs/project/static_debris_and_density_scope.md`;
-- воспроизводимая установка через `pyproject.toml`, CI workflow и `docs/project/reproducibility_notes.md`;
-- active score зафиксирован как heuristic uncertainty-aware score, не expected information gain;
-- научная интерпретация pre-final smoke: `docs/article/stage2/prefinal_smoke_interpretation_decision.md`;
-- preregistration финального прогона: `docs/article/stage2/final_confirmatory_preregistration.md`;
-- повторяющийся coverage baseline;
-- подавление посещенных greedy-регионов;
-- разделенные метрики карты `initial_*` и `residual_*`.
+```text
+out/cleanup_sim_v2/v2_1_smoke_3seed_2026-08-01_refresh/
+```
 
-## Актуальные результаты
+Краткий вывод smoke: физика стала строже, простые стратегии собирают мало при бюджете 600 м, а `oracle_current_physics` показывает большой зазор для будущего алгоритма.
 
-Финальных результатов статьи пока нет.
+## Главные документы
 
-Актуальный диагностический smoke после закрытия P0/P1:
+- `docs/project/parameter_evidence_matrix.md` - параметры, источники, ограничения заявлений.
+- `docs/project/simulator_v2_implementation_notes.md` - как запускать и что реализовано.
+- `docs/project/simulator_v2_1_closure_report.md` - что закрыто в v2.1 и какие smoke-результаты получены.
+- `docs/project/final_run_readiness_backlog.md` - исторический backlog аудита.
 
-`out/audit/p1_prefinal_confirmatory_smoke_5seed/`
+## Что нельзя заявлять в статье
 
-Документ:
+- Что реализованы SLAM, NMHE, NMPC или ROS/Gazebo-эксперимент.
+- Что реализована реальная CV/radar-система обнаружения мусора.
+- Что дрейф является полноценной гидродинамикой или CFD.
+- Что oracle является математически оптимальным маршрутом.
+- Что старые таблицы `cleanup_sim` являются актуальными результатами.
 
-`docs/article/results/p1_prefinal_confirmatory_smoke_5seed.md`
+## Следующий шаг
 
-Этот smoke не является публикационной статистикой, но показывает новую честную картину после ремонта baseline-ов, статистики, target-учета и sensitivity-инструментария:
+Проект готов к разработке нового алгоритма планирования поверх v2.1.
 
-- `greedy` стал сильным baseline-ом и больше не может считаться “провальным” по старым таблицам;
-- `lawnmower_dense` обязателен как честный coverage baseline, `lawnmower_sparse` остается экономичным sparse-coverage вариантом;
-- `hybrid_final_v1` заморожен как final-arm с `hybrid_explore_entropy_threshold = 0.24`;
-- в 5-seed smoke `hybrid_final_v1` не является универсальным победителем и уступает `greedy`/`lawnmower_dense` в части сценариев;
-- старые выводы про превосходство hybrid/active должны быть пересчитаны после pre-final и final-run.
+Перед финальным `30 seed` прогоном нужно:
 
-## Исторические результаты
-
-Результаты до исправления AUC и `lawnmower` нельзя цитировать в статье как актуальные.
-
-Исторически полезны только для понимания эволюции:
-
-- `docs/article/results/ablation_pilot_v1.md`;
-- `docs/article/results/sensitivity_ofat_v1.md`;
-- `docs/article/results/hybrid_simulator_validation.md`;
-- `docs/article/drafts/2026-07-31_code_and_results_audit.md`;
-- `docs/article/drafts/2026-07-31_audit_triage_after_current_fixes.md`.
-
-## Блокеры перед финальной серией
-
-P0-блокеры аудита закрыты:
-
-- исправлен `greedy`;
-- добавлены `lawnmower_sparse` и `lawnmower_dense`;
-- разделены initial/residual map metrics;
-- active больше не fallback-ится в `greedy`;
-- `hybrid_final_v1` заморожен как final-arm;
-- старые draft/result документы помечены как исторические;
-- мертвый параметр `hybrid_switch_prob` удален.
-
-Остаются блокеры уровня P2/final-run:
-
-1. Согласовать научную интерпретацию pre-final smoke: оставить `hybrid_final_v1` как честный метод для анализа условий применимости или переработать hybrid-правило.
-
-2. Только после этого запускать финальный 30-seed confirmatory-run.
-
-Закрыто по воспроизводимости:
-
-- добавлен `pyproject.toml` для editable-установки `python -m pip install -e ".[dev]"`;
-- добавлен GitHub Actions workflow для Python `3.11` и `3.12`;
-- добавлен `docs/project/reproducibility_notes.md`;
-- корневые инструкции обновлены до актуального состояния `54 passed`.
-
-Закрыто по терминологии active/EIG:
-
-- текущий active score не называется expected information gain;
-- в stage1-формулировках усиленная новизна смягчена до `heuristic uncertainty-aware score`;
-- EIG оставлен как возможное усиление следующей версии, а не как вклад текущей статьи.
-
-Закрыто по статичности мусора и occupancy/count:
-
-- мусор явно описан как статичный baseline без ветра, течений и волн;
-- добавлены `true_count` и `residual_true_count` как диагностические карты;
-- summary и aggregate получают collision/count metrics;
-- текст статьи обязан различать occupancy probability и debris density/count.
-
-Закрыто по таблице параметров:
-
-- подготовлена таблица платформенных и сенсорных параметров с внешними источниками;
-- зафиксировано, что симулятор не является цифровым двойником конкретного USV;
-- физическая sensitivity оставлена обязательным сопровождением финального результата.
-
-Закрыто по preregistration:
-
-- зафиксированы arms, scenarios, seed-ы, бюджеты, primary/secondary metrics и статистика;
-- `hybrid_final_v1` запрещено менять после финального запуска;
-- финальный прогон по-прежнему не запускать до решения по P1-08.
-
-## Следующий рабочий шаг
-
-Не запускать финальные 30 seed до научного решения по интерпретации pre-final smoke.
-
-Ближайшая развилка:
-
-- оставить `hybrid_final_v1` как заранее зафиксированный метод и писать статью как анализ условий применимости;
-- переработать hybrid-правило и снова пройти pre-final smoke;
-- сместить основной вклад на симуляционный протокол, честные baseline-ы и trade-off analysis.
-
-Следующий этап:
-
-`docs/article/stage2/stage2_repair_and_final_experiment_plan.md`
+1. разработать кандидатный алгоритм;
+2. провести sensitivity по сенсорам и сборщику;
+3. заморозить параметры;
+4. выполнить paired-seed сравнение против `greedy`, `confirmed_route`, `lawnmower_collect` и `oracle_current_physics`.

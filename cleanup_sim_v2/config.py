@@ -7,7 +7,17 @@ from typing import Literal
 
 DistributionMode = Literal["clustered", "uniform"]
 ScenarioName = Literal["static_calm", "weak_drift", "strong_drift", "robot_disturbed"]
-PlannerMode = Literal["coverage", "lawnmower_survey", "lawnmower_collect", "greedy", "active", "confirmed_route"]
+PlannerMode = Literal[
+    "coverage",
+    "lawnmower_survey",
+    "lawnmower_collect",
+    "greedy",
+    "active",
+    "confirmed_route",
+    "oracle_perfect_static",
+    "oracle_current_physics",
+    "oracle_route_heuristic",
+]
 ParameterProfile = Literal["low", "nominal", "high"]
 
 
@@ -41,12 +51,16 @@ class PlatformConfig:
     cruise_speed_mps: float = 1.0
     collection_speed_mps: float = 0.6
     dt_s: float = 1.0
+    physics_substeps: int = 4
     tmax_s: float = 5400.0
     max_path_m: float = 3600.0
     arrival_tolerance_m: float = 1.0
+    turn_rate_rad_s: float = 0.7
     sensor_period_s: float = 2.0
     collection_width_m: float = 1.0
     collection_length_m: float = 1.8
+    collection_approach_radius_m: float = 6.0
+    target_dwell_time_s: float = 4.0
     capture_probability: float = 0.75
     capture_time_s: float = 2.0
     collection_throughput_kg_s: float = 0.8
@@ -128,6 +142,8 @@ class PlannerConfig:
     target_confirm_hits: int = 2
     target_min_sensor_types: int = 1
     target_nms_radius_m: float = 4.0
+    target_stale_after_s: float = 300.0
+    target_suppression_radius_m: float = 6.0
     route_batch_size: int = 10
 
 

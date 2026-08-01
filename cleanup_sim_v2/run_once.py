@@ -6,7 +6,8 @@ from pathlib import Path
 from dataclasses import replace
 
 from .config import ParameterProfile, PlannerMode, ScenarioName, scenario_config
-from .io import save_run
+from .io import config_hash, git_commit, git_dirty, save_run
+from .run_experiments import ALL_MODES
 from .simulation import run_simulation
 
 
@@ -15,7 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scenario", choices=["static_calm", "weak_drift", "strong_drift", "robot_disturbed"], default="weak_drift")
     parser.add_argument(
         "--mode",
-        choices=["coverage", "lawnmower_survey", "lawnmower_collect", "greedy", "active", "confirmed_route"],
+        choices=ALL_MODES,
         default="active",
     )
     parser.add_argument("--profile", choices=["low", "nominal", "high"], default="nominal")
@@ -44,6 +45,14 @@ def main() -> None:
             ),
         )
     result = run_simulation(cfg)
+    result.summary.update(
+        {
+            "config_hash": config_hash(cfg.to_dict()),
+            "git_commit": git_commit(),
+            "git_dirty": git_dirty(),
+            "runner": "run_once",
+        }
+    )
     prefix = f"{args.scenario}__{args.mode}__{args.profile}__seed{args.seed}"
     paths = save_run(result, args.out_dir, prefix)
     print(result.summary)

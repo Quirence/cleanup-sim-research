@@ -66,13 +66,40 @@ def sensor_metrics(detection_records: list[dict], total_debris: int) -> dict:
             "detection_recall": 0.0,
             "false_detection_count": 0,
             "true_detection_count": 0,
+            "camera_detection_precision": 0.0,
+            "camera_detection_recall": 0.0,
+            "radar_detection_precision": 0.0,
+            "radar_detection_recall": 0.0,
+            "near_range_detection_precision": 0.0,
+            "mid_range_detection_precision": 0.0,
+            "far_range_detection_precision": 0.0,
         }
     true_records = [d for d in detection_records if not d["is_false"]]
     false_records = [d for d in detection_records if d["is_false"]]
     detected_ids = {int(d["source_index"]) for d in true_records if d["source_index"] is not None}
-    return {
+    out = {
         "detection_precision": len(true_records) / max(1, len(detection_records)),
         "detection_recall": len(detected_ids) / max(1, total_debris),
         "false_detection_count": len(false_records),
         "true_detection_count": len(true_records),
     }
+    for sensor_name in ("camera", "radar"):
+        sensor_records = [d for d in detection_records if d["sensor"] == sensor_name]
+        sensor_true = [d for d in sensor_records if not d["is_false"]]
+        sensor_ids = {int(d["source_index"]) for d in sensor_true if d["source_index"] is not None}
+        out[f"{sensor_name}_detection_precision"] = len(sensor_true) / max(1, len(sensor_records))
+        out[f"{sensor_name}_detection_recall"] = len(sensor_ids) / max(1, total_debris)
+        out[f"{sensor_name}_false_detection_count"] = len(sensor_records) - len(sensor_true)
+        out[f"{sensor_name}_true_detection_count"] = len(sensor_true)
+
+    range_bins = {
+        "near": (0.0, 15.0),
+        "mid": (15.0, 30.0),
+        "far": (30.0, np.inf),
+    }
+    for name, (lo, hi) in range_bins.items():
+        records = [d for d in detection_records if lo <= float(d.get("range_m", 0.0)) < hi]
+        true_in_bin = [d for d in records if not d["is_false"]]
+        out[f"{name}_range_detection_precision"] = len(true_in_bin) / max(1, len(records))
+        out[f"{name}_range_detection_count"] = len(records)
+    return out

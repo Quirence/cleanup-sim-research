@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .collection import collect_in_aperture
+from .collection import CaptureEvent, collect_in_aperture
 from .config import RunConfig
 from .hydrodynamics import drift_debris
 from .mapping import (
@@ -23,7 +23,7 @@ from .planners import (
     pop_route_goal_if_arrived,
     suppress_greedy_goal,
 )
-from .sensors import detect_with_suite
+from .sensors import detect_with_suite, wrap_angle
 from .targets import TargetQueue
 from .world import DebrisField, make_debris_field, true_count_map
 
@@ -38,20 +38,72 @@ class RunResult:
     summary: dict
 
 
-def _step_toward(pos: np.ndarray, goal: np.ndarray, speed_mps: float, dt_s: float) -> tuple[np.ndarray, float, bool]:
+def _advance_motion(
+    pos: np.ndarray,
+    goal: np.ndarray,
+    heading_rad: float,
+    speed_mps: float,
+    dt_s: float,
+    turn_rate_rad_s: float,
+) -> tuple[np.ndarray, float, float, bool]:
     vec = goal - pos
     dist = float(np.linalg.norm(vec))
     if dist <= 1e-12:
-        return pos.copy(), 0.0, True
-    step = min(speed_mps * dt_s, dist)
-    return pos + vec * (step / dist), step, step >= dist - 1e-12
+        return pos.copy(), heading_rad, 0.0, True
+
+    desired_heading = float(np.arctan2(vec[1], vec[0]))
+    heading_error = float(wrap_angle(desired_heading - heading_rad))
+    max_turn = max(0.0, turn_rate_rad_s) * dt_s
+    if abs(heading_error) > max_turn + 1e-12:
+        return pos.copy(), float(wrap_angle(heading_rad + np.sign(heading_error) * max_turn)), 0.0, False
+
+    step = min(max(0.0, speed_mps) * dt_s, dist)
+    new_pos = pos + vec * (step / max(dist, 1e-12))
+    return new_pos, desired_heading, step, step >= dist - 1e-12
 
 
-def _heading(prev: np.ndarray, new: np.ndarray, fallback: float) -> float:
-    delta = new - prev
-    if np.linalg.norm(delta) <= 1e-12:
-        return fallback
-    return float(np.arctan2(delta[1], delta[0]))
+def _motion_speed(config: RunConfig, goal_mode: str, pos: np.ndarray, goal: np.ndarray) -> float:
+    if goal_mode == "return":
+        return config.platform.cruise_speed_mps
+    if config.planner.mode == "lawnmower_collect":
+        return config.platform.collection_speed_mps
+    if goal_mode in {"greedy", "active", "route", "oracle"}:
+        distance = float(np.linalg.norm(goal - pos))
+        if distance <= config.platform.collection_approach_radius_m:
+            return config.platform.collection_speed_mps
+        return config.platform.cruise_speed_mps
+    return config.platform.cruise_speed_mps
+
+
+def _grid_value(density_map: DensityMap, point: np.ndarray) -> float:
+    grid = density_map.grid
+    iy = int(np.argmin(np.abs(grid.y_centers - point[1])))
+    ix = int(np.argmin(np.abs(grid.x_centers - point[0])))
+    return float(density_map.expected_count[iy, ix])
+
+
+def _append_capture_event(
+    events: list[dict],
+    cap: CaptureEvent,
+    t_s: float,
+    mode: str,
+    bin_load_kg: float,
+) -> None:
+    row = {
+        "time_s": t_s,
+        "event": "collect" if cap.success else cap.reason,
+        "mode": mode,
+        "debris_id": cap.debris_id,
+        "x": float(cap.position[0]),
+        "y": float(cap.position[1]),
+        "mass_kg": float(cap.mass_kg),
+        "work_kg": float(cap.work_kg),
+        "required_work_kg": float(cap.required_work_kg),
+        "terminal_capture": bool(cap.terminal),
+    }
+    if cap.success:
+        row["bin_load_kg"] = float(bin_load_kg)
+    events.append(row)
 
 
 def run_simulation(config: RunConfig) -> RunResult:
@@ -66,7 +118,11 @@ def run_simulation(config: RunConfig) -> RunResult:
     heading = 0.0
     current_goal: np.ndarray | None = None
     current_goal_mode = "none"
+    current_goal_reason = "none"
+    current_goal_expected_value = 0.0
     current_goal_start_path = 0.0
+    current_goal_start_time = 0.0
+    current_goal_arrived_time: float | None = None
     current_goal_start_collected = 0
     bin_load_kg = 0.0
     total_path_m = 0.0
@@ -79,18 +135,27 @@ def run_simulation(config: RunConfig) -> RunResult:
     detection_records: list[dict] = []
 
     goal_count = 0
+    evaluated_goal_count = 0
     goal_successes = 0
     empty_goal_arrivals = 0
     route_false_visits = 0
     wasted_path_to_empty_goals = 0.0
-    capture_attempts = 0
-    missed_captures = 0
+    wasted_time_to_empty_goals = 0.0
+    capture_contacts = 0
+    terminal_capture_attempts = 0
+    successful_captures = 0
+    missed_capture_count = 0
+    bin_full_events = 0
+    throughput_limit_events = 0
+    partial_contact_events = 0
     pushed_away_events = 0
     info_gain_total = 0.0
     unload_events = 0
 
     while t_s <= config.platform.tmax_s and total_path_m <= config.platform.max_path_m:
-        predict_density_map(density_map, config.hydro, config.grid, config.platform.dt_s)
+        dt_s = config.platform.dt_s
+        predict_density_map(density_map, config.hydro, config.grid, dt_s)
+        target_queue.prune(t_s)
 
         pose = np.array([pos[0], pos[1], heading], dtype=float)
         if t_s - last_sensor_t_s >= config.platform.sensor_period_s:
@@ -106,6 +171,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                         "is_false": det.is_false,
                         "source_index": det.source_index,
                         "confidence": det.confidence,
+                        "range_m": det.range_m,
                     }
                 )
                 events.append(
@@ -119,6 +185,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                         "confidence": float(det.confidence),
                         "source_index": "" if det.source_index is None else int(det.source_index),
                         "is_false": bool(det.is_false),
+                        "range_m": float(det.range_m),
                     }
                 )
             for track in confirmations:
@@ -135,7 +202,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 )
 
         if current_goal is None:
-            current_goal, current_goal_mode = choose_goal(
+            decision = choose_goal(
                 t_s,
                 pos,
                 planner_state,
@@ -144,116 +211,199 @@ def run_simulation(config: RunConfig) -> RunResult:
                 config.platform,
                 config.planner,
                 target_queue,
+                field,
             )
+            current_goal = decision.point
+            current_goal_mode = decision.mode
+            current_goal_reason = decision.reason
+            current_goal_expected_value = decision.expected_value
             goal_count += 1
             current_goal_start_path = total_path_m
+            current_goal_start_time = t_s
+            current_goal_arrived_time = None
             current_goal_start_collected = int(field.collected.sum())
             events.append(
                 {
                     "time_s": t_s,
                     "event": "goal_started",
                     "mode": current_goal_mode,
+                    "reason": current_goal_reason,
                     "x": float(current_goal[0]),
                     "y": float(current_goal[1]),
                     "distance_m": float(np.linalg.norm(current_goal - pos)),
-                    "map_value": float(density_map.expected_count[
-                        np.argmin(np.abs(grid.y_centers - current_goal[1])),
-                        np.argmin(np.abs(grid.x_centers - current_goal[0])),
-                    ]),
+                    "map_value": _grid_value(density_map, current_goal),
+                    "expected_value": float(current_goal_expected_value),
                 }
             )
-
-        speed = config.platform.collection_speed_mps
-        prev = pos.copy()
-        pos, step_m, arrived = _step_toward(pos, current_goal, speed, config.platform.dt_s)
-        heading = _heading(prev, pos, heading)
-        total_path_m += step_m
-
-        drift_debris(rng, field, config.world, config.hydro, config.platform.dt_s, robot_pos=pos)
-        pushed_away_events = int(field.pushed_events.sum())
-
-        capture_events, bin_load_kg = collect_in_aperture(
-            rng,
-            field,
-            prev,
-            pos,
-            heading,
-            config.platform,
-            bin_load_kg,
-            config.platform.dt_s,
-        )
-        if capture_events:
-            t_s += config.platform.capture_time_s * len(capture_events)
-        for cap in capture_events:
-            capture_attempts += 1
-            if cap.success:
-                suppress_collected_area(density_map, cap.position, max(config.platform.collection_width_m, 1.0))
+        elif config.planner.mode == "oracle_current_physics" and current_goal_mode == "oracle":
+            decision = choose_goal(
+                t_s,
+                pos,
+                planner_state,
+                density_map,
+                config.world,
+                config.platform,
+                config.planner,
+                target_queue,
+                field,
+            )
+            if np.linalg.norm(decision.point - current_goal) > config.platform.arrival_tolerance_m:
+                current_goal = decision.point
+                current_goal_reason = decision.reason
+                current_goal_expected_value = decision.expected_value
+                current_goal_arrived_time = None
                 events.append(
                     {
                         "time_s": t_s,
-                        "event": "collect",
+                        "event": "goal_updated",
                         "mode": current_goal_mode,
-                        "debris_id": cap.debris_id,
-                        "x": float(cap.position[0]),
-                        "y": float(cap.position[1]),
-                        "mass_kg": float(cap.mass_kg),
-                        "bin_load_kg": float(bin_load_kg),
+                        "reason": current_goal_reason,
+                        "x": float(current_goal[0]),
+                        "y": float(current_goal[1]),
+                        "distance_m": float(np.linalg.norm(current_goal - pos)),
+                        "expected_value": float(current_goal_expected_value),
                     }
                 )
-            else:
-                missed_captures += 1
-                events.append(
-                    {
-                        "time_s": t_s,
-                        "event": cap.reason,
-                        "mode": current_goal_mode,
-                        "debris_id": cap.debris_id,
-                        "x": float(cap.position[0]),
-                        "y": float(cap.position[1]),
-                        "mass_kg": float(cap.mass_kg),
-                    }
-                )
+
+        arrived = False
+        substeps = max(1, int(config.platform.physics_substeps))
+        dt_sub = dt_s / substeps
+        for substep in range(substeps):
+            if current_goal is None:
+                break
+            speed = _motion_speed(config, current_goal_mode, pos, current_goal)
+            prev = pos.copy()
+            pos, heading, step_m, sub_arrived = _advance_motion(
+                pos,
+                current_goal,
+                heading,
+                speed,
+                dt_sub,
+                config.platform.turn_rate_rad_s,
+            )
+            total_path_m += step_m
+
+            sub_t_s = t_s + (substep + 1) * dt_sub
+            drift_debris(rng, field, config.world, config.hydro, dt_sub, robot_pos=pos)
+            pushed_away_events = int(field.pushed_events.sum())
+
+            capture_events, bin_load_kg = collect_in_aperture(
+                rng,
+                field,
+                prev,
+                pos,
+                heading,
+                config.platform,
+                bin_load_kg,
+                dt_sub,
+                speed_mps=speed,
+            )
+            for cap in capture_events:
+                capture_contacts += 1
+                if cap.reason == "partial_contact":
+                    partial_contact_events += 1
+                elif cap.reason == "throughput_limit":
+                    throughput_limit_events += 1
+                elif cap.reason == "bin_full":
+                    bin_full_events += 1
+                if cap.terminal and cap.reason in {"captured", "missed_capture"}:
+                    terminal_capture_attempts += 1
+                if cap.success:
+                    successful_captures += 1
+                    suppress_collected_area(density_map, cap.position, max(config.platform.collection_width_m, 1.0))
+                elif cap.reason == "missed_capture":
+                    missed_capture_count += 1
+                _append_capture_event(events, cap, sub_t_s, current_goal_mode, bin_load_kg)
+
+            arrived = arrived or sub_arrived
+            if np.all(field.collected) or total_path_m >= config.platform.max_path_m:
+                break
 
         if np.all(field.collected):
             stop_reason = "done"
-            events.append({"time_s": t_s, "event": "done", "mode": current_goal_mode, "x": float(pos[0]), "y": float(pos[1])})
+            events.append(
+                {
+                    "time_s": t_s,
+                    "event": "done",
+                    "mode": current_goal_mode,
+                    "x": float(pos[0]),
+                    "y": float(pos[1]),
+                }
+            )
             break
 
-        if bin_load_kg >= config.platform.bin_capacity_kg * config.platform.return_ratio:
+        if bin_load_kg >= config.platform.bin_capacity_kg * config.platform.return_ratio and current_goal_mode != "return":
             current_goal = np.array(config.world.depot, dtype=float)
             current_goal_mode = "return"
+            current_goal_reason = "bin_capacity_return"
+            current_goal_expected_value = 0.0
+            current_goal_start_path = total_path_m
+            current_goal_start_time = t_s + dt_s
+            current_goal_arrived_time = None
+            current_goal_start_collected = int(field.collected.sum())
+            events.append(
+                {
+                    "time_s": t_s + dt_s,
+                    "event": "return_started",
+                    "mode": "return",
+                    "reason": current_goal_reason,
+                    "x": float(current_goal[0]),
+                    "y": float(current_goal[1]),
+                    "bin_load_kg": float(bin_load_kg),
+                }
+            )
 
-        if arrived or (current_goal is not None and np.linalg.norm(current_goal - pos) <= config.platform.arrival_tolerance_m):
+        reached_goal_region = current_goal is not None and (
+            arrived or np.linalg.norm(current_goal - pos) <= config.platform.arrival_tolerance_m
+        )
+        if reached_goal_region and current_goal_arrived_time is None:
+            current_goal_arrived_time = t_s + dt_s
+
+        dwell_required = current_goal_mode in {"greedy", "active", "route", "oracle"}
+        collected_delta_now = int(field.collected.sum()) - current_goal_start_collected
+        dwell_elapsed = 0.0 if current_goal_arrived_time is None else (t_s + dt_s - current_goal_arrived_time)
+        should_complete_goal = bool(reached_goal_region)
+        if dwell_required and collected_delta_now == 0 and dwell_elapsed < config.platform.target_dwell_time_s:
+            should_complete_goal = False
+
+        if current_goal is not None and should_complete_goal:
             collected_delta = int(field.collected.sum()) - current_goal_start_collected
             goal_path = total_path_m - current_goal_start_path
+            goal_time = t_s + dt_s - current_goal_start_time
             if current_goal_mode == "greedy":
                 suppress_greedy_goal(planner_state, density_map, current_goal, config.planner.greedy_tabu_radius_m)
             counts_for_goal_metrics = current_goal_mode != "return"
             if counts_for_goal_metrics:
+                evaluated_goal_count += 1
                 if collected_delta > 0:
                     goal_successes += 1
                 else:
                     empty_goal_arrivals += 1
                     wasted_path_to_empty_goals += goal_path
+                    wasted_time_to_empty_goals += goal_time
+                    target_queue.suppress_near(current_goal, t_s + dt_s)
                     if current_goal_mode == "route":
                         route_false_visits += 1
             events.append(
                 {
-                    "time_s": t_s,
+                    "time_s": t_s + dt_s,
                     "event": "goal_completed",
                     "mode": current_goal_mode,
+                    "reason": current_goal_reason,
                     "x": float(pos[0]),
                     "y": float(pos[1]),
                     "collected_delta": collected_delta,
                     "goal_path_m": float(goal_path),
+                    "goal_time_s": float(goal_time),
                     "empty_goal": collected_delta == 0,
+                    "expected_value": float(current_goal_expected_value),
                 }
             )
             if np.linalg.norm(pos - np.array(config.world.depot, dtype=float)) <= config.platform.arrival_tolerance_m and bin_load_kg > 0:
                 unload_events += 1
                 events.append(
                     {
-                        "time_s": t_s,
+                        "time_s": t_s + dt_s,
                         "event": "unload",
                         "mode": current_goal_mode,
                         "x": float(pos[0]),
@@ -277,10 +427,11 @@ def run_simulation(config: RunConfig) -> RunResult:
                 "empty_goal_arrivals": empty_goal_arrivals,
                 "route_false_visits": route_false_visits,
                 "wasted_path_to_empty_goals": wasted_path_to_empty_goals,
+                "wasted_time_to_empty_goals": wasted_time_to_empty_goals,
             }
         )
 
-        t_s += config.platform.dt_s
+        t_s += dt_s
 
     if total_path_m >= config.platform.max_path_m and stop_reason != "done":
         stop_reason = "path_budget"
@@ -289,6 +440,7 @@ def run_simulation(config: RunConfig) -> RunResult:
     quality = map_quality(density_map, residual_counts)
     collected_count = int(field.collected.sum())
     collected_ratio = collected_count / max(1, config.world.n_debris)
+    collected_mass_kg = float(field.masses_kg[field.collected].sum())
     path_values = [float(s["path_m"]) for s in series]
     ratios = [float(s["collected_ratio"]) for s in series]
     detection_summary = sensor_metrics(detection_records, config.world.n_debris)
@@ -300,19 +452,31 @@ def run_simulation(config: RunConfig) -> RunResult:
         "stop_reason": stop_reason,
         "collected": collected_count,
         "collected_ratio": collected_ratio,
-        "collected_mass_kg": float(field.masses_kg[field.collected].sum()),
-        "collected_mass_per_meter": float(field.masses_kg[field.collected].sum()) / max(1e-9, total_path_m),
+        "collected_mass_kg": collected_mass_kg,
+        "collected_mass_per_meter": collected_mass_kg / max(1e-9, total_path_m),
         "path_length_m": total_path_m,
         "sim_time_s": t_s,
         "goal_count": goal_count,
+        "evaluated_goal_count": evaluated_goal_count,
         "empty_goal_arrivals": empty_goal_arrivals,
+        "empty_goal_arrivals_per_km": empty_goal_arrivals / max(1e-9, total_path_m / 1000.0),
         "wasted_path_to_empty_goals": wasted_path_to_empty_goals,
-        "goal_success_rate": goal_successes / max(1, goal_count),
+        "wasted_path_ratio": wasted_path_to_empty_goals / max(1e-9, total_path_m),
+        "wasted_time_to_empty_goals": wasted_time_to_empty_goals,
+        "wasted_time_ratio": wasted_time_to_empty_goals / max(1e-9, t_s),
+        "goal_success_rate": goal_successes / max(1, evaluated_goal_count),
         "route_false_visits": route_false_visits,
-        "capture_attempts": capture_attempts,
-        "missed_captures": missed_captures,
-        "collection_precision": (capture_attempts - missed_captures) / max(1, capture_attempts),
+        "capture_contacts": capture_contacts,
+        "terminal_capture_attempts": terminal_capture_attempts,
+        "successful_captures": successful_captures,
+        "missed_capture_count": missed_capture_count,
+        "missed_captures": missed_capture_count,
+        "partial_contact_events": partial_contact_events,
+        "throughput_limit_events": throughput_limit_events,
+        "bin_full_events": bin_full_events,
+        "collection_precision": successful_captures / max(1, terminal_capture_attempts),
         "pushed_away_events": pushed_away_events,
+        "pushed_away_debris_count": int(np.count_nonzero(field.pushed_events)),
         "info_gain_total": info_gain_total,
         "unload_events": unload_events,
         "auc_collected_by_path": auc_by_path(path_values, ratios, config.platform.max_path_m),

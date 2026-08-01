@@ -93,8 +93,8 @@ def visible_cell_mask(grid: Grid, pose: np.ndarray, sensor: SensorConfig) -> np.
 
 
 def _add_detection_kernel(density_map: DensityMap, det: Detection, sensor: SensorConfig) -> None:
-    sigma = max(sensor.localization_sigma_m, 0.5)
-    radius = max(2.0 * sigma, density_map.grid.dx)
+    sigma = max(sensor.localization_sigma_m + sensor.localization_sigma_per_m * det.range_m, 0.5)
+    radius = max(2.5 * sigma, density_map.grid.dx)
     dist2 = (density_map.grid.xx - det.position[0]) ** 2 + (density_map.grid.yy - det.position[1]) ** 2
     mask = dist2 <= radius * radius
     if not np.any(mask):
@@ -103,7 +103,8 @@ def _add_detection_kernel(density_map: DensityMap, det: Detection, sensor: Senso
     kernel_sum = float(kernel.sum())
     if kernel_sum <= EPS:
         return
-    increment = det.confidence * (0.75 if det.sensor == "camera" else 0.55)
+    confidence = float(np.clip(det.confidence, 0.01, 0.99))
+    increment = -np.log(1.0 - confidence) * (0.75 if det.sensor == "camera" else 0.55)
     density_map.expected_count[mask] += increment * kernel / kernel_sum
 
 
@@ -116,8 +117,9 @@ def update_density_map(
     before_entropy = float(np.mean(entropy(density_map.occupancy)))
     for sensor in sensors:
         mask = visible_cell_mask(density_map.grid, pose, sensor)
-        # No-observation evidence is intentionally weak: object-level detectors do not prove empty water.
-        density_map.expected_count[mask] *= 0.995
+        # No-observation evidence is weak but sensor-dependent: object-level detectors do not prove empty water.
+        missed_detection_factor = 1.0 - 0.025 * np.clip(sensor.p_detect_max, 0.0, 0.98)
+        density_map.expected_count[mask] *= missed_detection_factor
     by_name = {sensor.name: sensor for sensor in sensors}
     for det in detections:
         _add_detection_kernel(density_map, det, by_name[det.sensor])

@@ -17,6 +17,7 @@ class DebrisField:
     collected: np.ndarray
     missed_attempts: np.ndarray
     pushed_events: np.ndarray
+    capture_progress_kg: np.ndarray
 
     def alive_mask(self) -> np.ndarray:
         return ~self.collected
@@ -73,6 +74,7 @@ def make_debris_field(rng: np.random.Generator, cfg: WorldConfig) -> DebrisField
         collected=np.zeros(cfg.n_debris, dtype=bool),
         missed_attempts=np.zeros(cfg.n_debris, dtype=int),
         pushed_events=np.zeros(cfg.n_debris, dtype=int),
+        capture_progress_kg=np.zeros(cfg.n_debris, dtype=float),
     )
 
 
