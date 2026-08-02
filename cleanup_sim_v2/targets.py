@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .config import PlannerConfig, WorldConfig
+from .config import HydroConfig, PlannerConfig, WorldConfig
+from .hydrodynamics import ambient_velocity
 from .sensors import Detection
 
 
@@ -15,6 +16,7 @@ class TargetTrack:
     hits: int
     first_seen_s: float
     last_seen_s: float
+    localization_sigma_m: float = 0.0
     sensors: set[str] = field(default_factory=set)
     source_ids: set[int] = field(default_factory=set)
     reported_confirmed: bool = False
@@ -43,6 +45,7 @@ class TargetQueue:
             position = np.clip(det.position.astype(float), [0.0, 0.0], [world.width_m, world.height_m])
             if self._is_suppressed(position, t_s):
                 continue
+            det_sigma = max(float(det.localization_sigma_m), 0.5)
             match = self._find_match(position)
             if match is None:
                 track = TargetTrack(
@@ -51,13 +54,18 @@ class TargetQueue:
                     hits=1,
                     first_seen_s=t_s,
                     last_seen_s=t_s,
+                    localization_sigma_m=det_sigma,
                     sensors={det.sensor},
                     source_ids=set(),
                 )
                 self.tracks.append(track)
             else:
                 track = match
-                track.position = (track.position * track.hits + position) / (track.hits + 1)
+                track_sigma = max(float(track.localization_sigma_m), 0.5)
+                track_weight = 1.0 / (track_sigma * track_sigma)
+                det_weight = 1.0 / (det_sigma * det_sigma)
+                track.position = (track.position * track_weight + position * det_weight) / (track_weight + det_weight)
+                track.localization_sigma_m = float(np.sqrt(1.0 / (track_weight + det_weight)))
                 track.confidence = max(track.confidence, det.confidence)
                 track.hits += 1
                 track.last_seen_s = t_s
@@ -71,6 +79,14 @@ class TargetQueue:
         if t_s is not None:
             self.prune(t_s)
         return [track.position.copy() for track in self.tracks if track.confirmed(self.planner)]
+
+    def predict(self, hydro: HydroConfig, world: WorldConfig, dt_s: float) -> None:
+        velocity = ambient_velocity(hydro)
+        diffusion_sigma = float(np.sqrt(max(0.0, 2.0 * hydro.diffusivity_m2_s * dt_s)))
+        for track in self.tracks:
+            track.position = np.clip(track.position + velocity * dt_s, [0.0, 0.0], [world.width_m, world.height_m])
+            if diffusion_sigma > 0.0:
+                track.localization_sigma_m = float(np.hypot(track.localization_sigma_m, diffusion_sigma))
 
     def remove_near(self, position: np.ndarray, radius_m: float) -> int:
         before = len(self.tracks)

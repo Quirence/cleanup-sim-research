@@ -62,17 +62,46 @@ def _advance_motion(
     return new_pos, desired_heading, step, step >= dist - 1e-12
 
 
-def _motion_speed(config: RunConfig, goal_mode: str, pos: np.ndarray, goal: np.ndarray) -> float:
+def _motion_speed(
+    config: RunConfig,
+    goal_mode: str,
+    pos: np.ndarray,
+    goal: np.ndarray,
+    goal_details: dict[str, float | str] | None = None,
+) -> float:
     if goal_mode == "return":
         return config.platform.cruise_speed_mps
     if config.planner.mode == "lawnmower_collect":
         return config.platform.collection_speed_mps
-    if goal_mode in {"greedy", "active", "route", "oracle"}:
+    details = {} if goal_details is None else goal_details
+    candidate_type = str(details.get("candidate_type", ""))
+    expected_collection = float(details.get("score_expected_collection", 0.0))
+    is_collection_transect = candidate_type in {
+        "confirmed_target_transect",
+        "provisional_target_transect",
+        "density_transect",
+        "cluster_route_transect",
+        "confirmed_target_local_sweep",
+    }
+    if (
+        config.planner.belief_transect_collection_speed_enabled
+        and goal_mode in {"belief_horizon", "belief_orienteering"}
+        and (
+            is_collection_transect
+            or expected_collection >= config.planner.belief_collection_speed_expected_count_threshold
+        )
+    ):
+        return config.platform.collection_speed_mps
+    if goal_mode in {"greedy", "active", "belief_horizon", "belief_orienteering", "route", "oracle"}:
         distance = float(np.linalg.norm(goal - pos))
         if distance <= config.platform.collection_approach_radius_m:
             return config.platform.collection_speed_mps
         return config.platform.cruise_speed_mps
     return config.platform.cruise_speed_mps
+
+
+def _is_belief_goal_mode(goal_mode: str) -> bool:
+    return goal_mode in {"belief_horizon", "belief_orienteering"}
 
 
 def _grid_value(density_map: DensityMap, point: np.ndarray) -> float:
@@ -120,6 +149,7 @@ def run_simulation(config: RunConfig) -> RunResult:
     current_goal_mode = "none"
     current_goal_reason = "none"
     current_goal_expected_value = 0.0
+    current_goal_details: dict[str, float | str] = {}
     current_goal_start_path = 0.0
     current_goal_start_time = 0.0
     current_goal_arrived_time: float | None = None
@@ -155,6 +185,8 @@ def run_simulation(config: RunConfig) -> RunResult:
     while t_s <= config.platform.tmax_s and total_path_m <= config.platform.max_path_m:
         dt_s = config.platform.dt_s
         predict_density_map(density_map, config.hydro, config.grid, dt_s)
+        if config.planner.belief_track_prediction_enabled:
+            target_queue.predict(config.hydro, config.world, dt_s)
         target_queue.prune(t_s)
 
         pose = np.array([pos[0], pos[1], heading], dtype=float)
@@ -217,24 +249,25 @@ def run_simulation(config: RunConfig) -> RunResult:
             current_goal_mode = decision.mode
             current_goal_reason = decision.reason
             current_goal_expected_value = decision.expected_value
+            current_goal_details = dict(decision.details)
             goal_count += 1
             current_goal_start_path = total_path_m
             current_goal_start_time = t_s
             current_goal_arrived_time = None
             current_goal_start_collected = int(field.collected.sum())
-            events.append(
-                {
-                    "time_s": t_s,
-                    "event": "goal_started",
-                    "mode": current_goal_mode,
-                    "reason": current_goal_reason,
-                    "x": float(current_goal[0]),
-                    "y": float(current_goal[1]),
-                    "distance_m": float(np.linalg.norm(current_goal - pos)),
-                    "map_value": _grid_value(density_map, current_goal),
-                    "expected_value": float(current_goal_expected_value),
-                }
-            )
+            row = {
+                "time_s": t_s,
+                "event": "goal_started",
+                "mode": current_goal_mode,
+                "reason": current_goal_reason,
+                "x": float(current_goal[0]),
+                "y": float(current_goal[1]),
+                "distance_m": float(np.linalg.norm(current_goal - pos)),
+                "map_value": _grid_value(density_map, current_goal),
+                "expected_value": float(current_goal_expected_value),
+            }
+            row.update(current_goal_details)
+            events.append(row)
         elif config.planner.mode == "oracle_current_physics" and current_goal_mode == "oracle":
             decision = choose_goal(
                 t_s,
@@ -251,6 +284,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 current_goal = decision.point
                 current_goal_reason = decision.reason
                 current_goal_expected_value = decision.expected_value
+                current_goal_details = dict(decision.details)
                 current_goal_arrived_time = None
                 events.append(
                     {
@@ -271,7 +305,7 @@ def run_simulation(config: RunConfig) -> RunResult:
         for substep in range(substeps):
             if current_goal is None:
                 break
-            speed = _motion_speed(config, current_goal_mode, pos, current_goal)
+            speed = _motion_speed(config, current_goal_mode, pos, current_goal, current_goal_details)
             prev = pos.copy()
             pos, heading, step_m, sub_arrived = _advance_motion(
                 pos,
@@ -337,6 +371,7 @@ def run_simulation(config: RunConfig) -> RunResult:
             current_goal_mode = "return"
             current_goal_reason = "bin_capacity_return"
             current_goal_expected_value = 0.0
+            current_goal_details = {}
             current_goal_start_path = total_path_m
             current_goal_start_time = t_s + dt_s
             current_goal_arrived_time = None
@@ -359,7 +394,7 @@ def run_simulation(config: RunConfig) -> RunResult:
         if reached_goal_region and current_goal_arrived_time is None:
             current_goal_arrived_time = t_s + dt_s
 
-        dwell_required = current_goal_mode in {"greedy", "active", "route", "oracle"}
+        dwell_required = current_goal_mode in {"greedy", "active", "belief_horizon", "belief_orienteering", "route", "oracle"}
         collected_delta_now = int(field.collected.sum()) - current_goal_start_collected
         dwell_elapsed = 0.0 if current_goal_arrived_time is None else (t_s + dt_s - current_goal_arrived_time)
         should_complete_goal = bool(reached_goal_region)
@@ -370,35 +405,73 @@ def run_simulation(config: RunConfig) -> RunResult:
             collected_delta = int(field.collected.sum()) - current_goal_start_collected
             goal_path = total_path_m - current_goal_start_path
             goal_time = t_s + dt_s - current_goal_start_time
+            candidate_type = current_goal_details.get("candidate_type")
+            is_refinement_goal = (
+                _is_belief_goal_mode(current_goal_mode)
+                and str(candidate_type).endswith("_refine")
+            )
+            is_cluster_route_goal = candidate_type == "cluster_route_transect"
+            is_transect_goal = candidate_type in {
+                "confirmed_target_transect",
+                "provisional_target_transect",
+                "density_transect",
+                "confirmed_target_local_sweep",
+                "cluster_route_transect",
+            }
+            empty_suppression_radius = config.planner.target_suppression_radius_m
+            if _is_belief_goal_mode(current_goal_mode) and is_transect_goal:
+                empty_suppression_radius = max(
+                    empty_suppression_radius,
+                    config.planner.belief_transect_extension_m + config.planner.target_suppression_radius_m,
+                )
             if current_goal_mode == "greedy":
                 suppress_greedy_goal(planner_state, density_map, current_goal, config.planner.greedy_tabu_radius_m)
-            counts_for_goal_metrics = current_goal_mode != "return"
+            elif _is_belief_goal_mode(current_goal_mode) and collected_delta == 0 and not is_refinement_goal:
+                suppress_greedy_goal(
+                    planner_state,
+                    density_map,
+                    current_goal,
+                    max(empty_suppression_radius, 0.5 * config.planner.candidate_spacing_m),
+                )
+            counts_for_goal_metrics = current_goal_mode != "return" and not is_refinement_goal
             if counts_for_goal_metrics:
                 evaluated_goal_count += 1
                 if collected_delta > 0:
                     goal_successes += 1
+                    if _is_belief_goal_mode(current_goal_mode) and is_transect_goal:
+                        target_queue.remove_near(current_goal, empty_suppression_radius)
+                        if not is_cluster_route_goal:
+                            planner_state.current_route = None
+                            planner_state.current_route_mode = "route"
+                            planner_state.current_route_reason = "confirmed_target_route"
+                            planner_state.current_route_details = {}
                 else:
                     empty_goal_arrivals += 1
                     wasted_path_to_empty_goals += goal_path
                     wasted_time_to_empty_goals += goal_time
-                    target_queue.suppress_near(current_goal, t_s + dt_s)
+                    target_queue.suppress_near(current_goal, t_s + dt_s, empty_suppression_radius)
+                    if _is_belief_goal_mode(current_goal_mode) and is_cluster_route_goal:
+                        planner_state.current_route = None
+                        planner_state.current_route_mode = "route"
+                        planner_state.current_route_reason = "confirmed_target_route"
+                        planner_state.current_route_details = {}
                     if current_goal_mode == "route":
                         route_false_visits += 1
-            events.append(
-                {
-                    "time_s": t_s + dt_s,
-                    "event": "goal_completed",
-                    "mode": current_goal_mode,
-                    "reason": current_goal_reason,
-                    "x": float(pos[0]),
-                    "y": float(pos[1]),
-                    "collected_delta": collected_delta,
-                    "goal_path_m": float(goal_path),
-                    "goal_time_s": float(goal_time),
-                    "empty_goal": collected_delta == 0,
-                    "expected_value": float(current_goal_expected_value),
-                }
-            )
+            row = {
+                "time_s": t_s + dt_s,
+                "event": "goal_completed",
+                "mode": current_goal_mode,
+                "reason": current_goal_reason,
+                "x": float(pos[0]),
+                "y": float(pos[1]),
+                "collected_delta": collected_delta,
+                "goal_path_m": float(goal_path),
+                "goal_time_s": float(goal_time),
+                "empty_goal": collected_delta == 0,
+                "expected_value": float(current_goal_expected_value),
+            }
+            row.update(current_goal_details)
+            events.append(row)
             if np.linalg.norm(pos - np.array(config.world.depot, dtype=float)) <= config.platform.arrival_tolerance_m and bin_load_kg > 0:
                 unload_events += 1
                 events.append(

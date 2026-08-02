@@ -6,13 +6,33 @@ from typing import Literal
 
 
 DistributionMode = Literal["clustered", "uniform"]
-ScenarioName = Literal["static_calm", "weak_drift", "strong_drift", "robot_disturbed"]
+ScenarioName = Literal[
+    "static_calm",
+    "weak_drift",
+    "strong_drift",
+    "robot_disturbed",
+    "uniform_static_calm",
+    "uniform_weak_drift",
+    "uniform_strong_drift",
+    "uniform_robot_disturbed",
+]
 PlannerMode = Literal[
     "coverage",
     "lawnmower_survey",
     "lawnmower_collect",
     "greedy",
     "active",
+    "belief_horizon",
+    "belief_horizon_provisional",
+    "belief_cluster_route",
+    "belief_orienteering",
+    "belief_orienteering_provisional",
+    "belief_orienteering_depth1",
+    "belief_orienteering_no_opportunity_cost",
+    "belief_orienteering_density_disabled",
+    "belief_horizon_no_efficiency",
+    "belief_horizon_no_track_prediction",
+    "belief_horizon_no_refinement",
     "confirmed_route",
     "oracle_perfect_static",
     "oracle_current_physics",
@@ -137,6 +157,61 @@ class PlannerConfig:
     active_entropy_weight: float = 1.0
     active_density_weight: float = 1.8
     active_distance_weight: float = 0.018
+    belief_candidate_count: int = 30
+    belief_density_peak_count: int = 10
+    belief_entropy_peak_count: int = 8
+    belief_transect_count: int = 8
+    belief_expected_collection_weight: float = 2.0
+    belief_information_gain_weight: float = 0.35
+    belief_target_confirmation_weight: float = 0.35
+    belief_path_cost_weight: float = 0.004
+    belief_empty_goal_risk_weight: float = 0.25
+    belief_stale_target_risk_weight: float = 0.3
+    belief_efficiency_score: bool = True
+    belief_efficiency_scale_m: float = 30.0
+    belief_unconfirmed_candidate_max_travel_m: float = 80.0
+    belief_track_prediction_enabled: bool = True
+    belief_refinement_enabled: bool = True
+    belief_rollout_collection_weight: float = 0.65
+    belief_virtual_collection_discount: float = 0.6
+    belief_transect_extension_m: float = 10.0
+    belief_cluster_route_candidate_count: int = 14
+    belief_cluster_route_max_points: int = 3
+    belief_cluster_route_radius_m: float = 24.0
+    belief_cluster_route_max_length_m: float = 90.0
+    belief_cluster_route_min_points: int = 2
+    belief_cluster_route_switch_margin: float = 1.0
+    belief_cluster_route_confirmed_followups_only: bool = True
+    belief_orienteering_candidate_count: int = 16
+    belief_orienteering_depth: int = 3
+    belief_orienteering_min_route_points: int = 2
+    belief_orienteering_beam_width: int = 6
+    belief_orienteering_max_first_leg_m: float = 80.0
+    belief_orienteering_max_route_m: float = 145.0
+    belief_orienteering_future_discount: float = 0.72
+    belief_orienteering_switch_margin: float = 0.15
+    belief_orienteering_opportunity_cost_weight: float = 0.4
+    belief_orienteering_density_enabled: bool = True
+    belief_orienteering_entropy_enabled: bool = False
+    belief_orienteering_density_prior_weight: float = 0.15
+    belief_orienteering_min_density_swept_count: float = 0.6
+    belief_transect_collection_speed_enabled: bool = True
+    belief_collection_speed_expected_count_threshold: float = 1.0
+    belief_density_signal_threshold: float = 0.35
+    belief_entropy_signal_threshold: float = 0.02
+    belief_collect_sigma_threshold_m: float = 1.2
+    belief_refine_standoff_m: float = 8.0
+    belief_refine_confidence_weight: float = 0.5
+    belief_require_camera_before_collection: bool = False
+    belief_local_sweep_enabled: bool = False
+    belief_local_sweep_lanes: int = 3
+    belief_local_sweep_spacing_m: float = 0.8
+    belief_provisional_targets_enabled: bool = False
+    belief_provisional_min_confidence: float = 0.68
+    belief_provisional_min_hits: int = 1
+    belief_provisional_max_uncertainty_m: float = 3.5
+    belief_provisional_confidence_scale: float = 0.65
+    belief_provisional_require_camera: bool = True
     greedy_tabu_radius_m: float = 3.0
     target_confirm_confidence: float = 0.62
     target_confirm_hits: int = 2
@@ -229,17 +304,25 @@ def survey_lawnmower_spacing_m(sensors: SensorSuiteConfig) -> float:
     return max(4.0, 0.70 * effective_swath)
 
 
+def belief_scout_spacing_m(sensors: SensorSuiteConfig) -> float:
+    radar = sensors.radar
+    effective_swath = 2.0 * radar.decay_range_m * math.sin(math.radians(radar.fov_deg) * 0.5)
+    return max(12.0, 0.75 * effective_swath)
+
+
 def scenario_config(
     name: ScenarioName,
     seed: int,
     mode: PlannerMode,
     profile: ParameterProfile = "nominal",
 ) -> RunConfig:
-    world = WorldConfig()
+    distribution: DistributionMode = "uniform" if name.startswith("uniform_") else "clustered"
+    hydro_name = name.removeprefix("uniform_")
+    world = WorldConfig(distribution=distribution)
     hydro = HydroConfig()
-    if name == "static_calm":
+    if hydro_name == "static_calm":
         hydro = HydroConfig()
-    elif name == "weak_drift":
+    elif hydro_name == "weak_drift":
         hydro = HydroConfig(
             current_x_mps=0.018,
             current_y_mps=-0.006,
@@ -248,7 +331,7 @@ def scenario_config(
             windage=0.008,
             diffusivity_m2_s=0.015,
         )
-    elif name == "strong_drift":
+    elif hydro_name == "strong_drift":
         hydro = HydroConfig(
             current_x_mps=0.055,
             current_y_mps=-0.018,
@@ -257,7 +340,7 @@ def scenario_config(
             windage=0.015,
             diffusivity_m2_s=0.05,
         )
-    elif name == "robot_disturbed":
+    elif hydro_name == "robot_disturbed":
         hydro = HydroConfig(
             current_x_mps=0.02,
             current_y_mps=0.0,
@@ -271,6 +354,22 @@ def scenario_config(
     platform = _profile_platform(profile, PlatformConfig())
     sensors = _profile_sensors(profile, SensorSuiteConfig())
     planner = PlannerConfig(mode=mode)
+    if mode.startswith("belief_"):
+        planner = replace(planner, coverage_spacing_m=belief_scout_spacing_m(sensors))
+    if mode in {"belief_horizon_provisional", "belief_orienteering_provisional"}:
+        planner = replace(planner, belief_provisional_targets_enabled=True)
+    if mode == "belief_horizon_no_efficiency":
+        planner = replace(planner, belief_efficiency_score=False)
+    elif mode == "belief_horizon_no_track_prediction":
+        planner = replace(planner, belief_track_prediction_enabled=False)
+    elif mode == "belief_horizon_no_refinement":
+        planner = replace(planner, belief_refinement_enabled=False)
+    elif mode == "belief_orienteering_depth1":
+        planner = replace(planner, belief_orienteering_depth=1, belief_orienteering_min_route_points=1)
+    elif mode == "belief_orienteering_no_opportunity_cost":
+        planner = replace(planner, belief_orienteering_opportunity_cost_weight=0.0)
+    elif mode == "belief_orienteering_density_disabled":
+        planner = replace(planner, belief_orienteering_density_enabled=False)
     if mode in {"coverage", "lawnmower_survey"}:
         planner = replace(planner, coverage_spacing_m=survey_lawnmower_spacing_m(sensors))
     elif mode == "lawnmower_collect":

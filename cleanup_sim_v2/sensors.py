@@ -16,6 +16,7 @@ class Detection:
     source_index: int | None
     is_false: bool
     range_m: float
+    localization_sigma_m: float = 0.0
 
 
 def wrap_angle(angle: np.ndarray | float) -> np.ndarray | float:
@@ -62,6 +63,7 @@ def _sample_clutter(rng: np.random.Generator, pose: np.ndarray, world: WorldConf
                 source_index=None,
                 is_false=True,
                 range_m=float(range_m),
+                localization_sigma_m=float(sensor.localization_sigma_m + sensor.localization_sigma_per_m * range_m),
             )
         )
     return detections
@@ -102,6 +104,7 @@ def detect_with_sensor(
                 source_index=int(source_id),
                 is_false=False,
                 range_m=float(dist),
+                localization_sigma_m=float(sigma),
             )
         )
     return detections
