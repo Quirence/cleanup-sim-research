@@ -25,9 +25,11 @@ from cleanup_sim_v2.planners import (
     _orienteering_beam_score,
     _orienteering_candidates,
     _orienteering_single_candidate_score,
+    candidate_waypoints,
     choose_goal,
     initial_state,
     make_coverage_route,
+    next_active,
 )
 from cleanup_sim_v2.run_experiments import ALL_MODES, BASELINE_MODES, build_parser as build_experiment_parser
 from cleanup_sim_v2.sensors import Detection, detect_with_sensor
@@ -616,6 +618,41 @@ def test_belief_horizon_track_prediction_ablation_changes_trajectory_under_drift
     # Drift-prediction changes where confirmed targets appear to be, which changes routing
     # decisions enough to produce a materially different final trajectory.
     assert np.linalg.norm(last_with - last_without) > 10.0
+
+
+def test_next_active_fallback_uses_real_platform_and_state_not_defaults() -> None:
+    """next_active's argmax-over-candidates path can fall through to next_greedy when
+    every candidate waypoint is filtered out. That fallback used to build a throwaway
+    PlannerState()/PlatformConfig() instead of threading the caller's real objects, which
+    silently discarded greedy_suppressed (the tabu memory of already-visited cells) and
+    any non-default platform tolerances."""
+    cfg = scenario_config("static_calm", 0, "active")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=10.0, height_m=10.0, depot_x_m=5.0, depot_y_m=5.0, n_debris=1),
+        grid=replace(cfg.grid, nx=10, ny=10),
+    )
+    # A world this small leaves no candidate waypoints (coverage_margin_m=6 on each
+    # side of a 10 m world), which is exactly what forces next_active's fallback branch.
+    assert candidate_waypoints(cfg.world, cfg.planner).shape[0] == 0
+
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    density_map.expected_count[(np.abs(grid.yy - 2.0) <= 0.5) & (np.abs(grid.xx - 2.0) <= 0.5)] = 10.0
+    density_map.expected_count[(np.abs(grid.yy - 8.0) <= 0.5) & (np.abs(grid.xx - 8.0) <= 0.5)] = 3.0
+    current = np.array([5.0, 5.0], dtype=float)
+
+    state = initial_state(cfg.world, cfg.planner)
+    state.greedy_suppressed = np.zeros_like(density_map.expected_count, dtype=bool)
+    state.greedy_suppressed[(np.abs(grid.yy - 2.0) <= 0.5) & (np.abs(grid.xx - 2.0) <= 0.5)] = True
+
+    point = next_active(current, state, density_map, cfg.world, cfg.platform, cfg.planner)
+
+    # A fresh, unsuppressed state/default platform would pick the higher (2, 2) peak.
+    # Respecting the real, suppressed state must pick the lower (8, 8) peak instead.
+    assert point[0] > 5.0
+    assert point[1] > 5.0
 
 
 def test_config_hash_changes_when_significant_parameter_changes() -> None:

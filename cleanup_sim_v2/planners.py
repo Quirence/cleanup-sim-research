@@ -136,7 +136,14 @@ def candidate_waypoints(world: WorldConfig, planner: PlannerConfig) -> np.ndarra
     return np.column_stack([xx.ravel(), yy.ravel()])
 
 
-def next_active(current: np.ndarray, density_map: DensityMap, world: WorldConfig, planner: PlannerConfig) -> np.ndarray:
+def next_active(
+    current: np.ndarray,
+    state: PlannerState,
+    density_map: DensityMap,
+    world: WorldConfig,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+) -> np.ndarray:
     candidates = candidate_waypoints(world, planner)
     occ = density_map.occupancy
     h = entropy(occ)
@@ -156,7 +163,7 @@ def next_active(current: np.ndarray, density_map: DensityMap, world: WorldConfig
             - planner.active_distance_weight * travel
         )
     if not np.isfinite(scores).any():
-        return next_greedy(PlannerState(coverage_route=[]), density_map, current, PlatformConfig())
+        return next_greedy(state, density_map, current, platform)
     return candidates[int(np.argmax(scores))].astype(float)
 
 
@@ -599,7 +606,7 @@ def next_belief_horizon(
 
     candidates = _belief_candidates(current, state, density_map, world, platform, planner, targets, t_s)
     if not candidates:
-        point = next_active(current, density_map, world, planner)
+        point = next_active(current, state, density_map, world, platform, planner)
         return GoalDecision(point, "belief_horizon", "belief_fallback_active", 0.0, {"candidate_type": "fallback"})
 
     best: GoalDecision | None = None
@@ -1523,7 +1530,7 @@ def choose_goal(
     active_reached = state.active_goal is not None and np.linalg.norm(state.active_goal - current) <= platform.arrival_tolerance_m
     if state.active_goal is None or active_reached or t_s - state.last_replan_t_s >= planner.replan_interval_s:
         state.last_replan_t_s = t_s
-        state.active_goal = next_active(current, density_map, world, planner)
+        state.active_goal = next_active(current, state, density_map, world, platform, planner)
     return GoalDecision(state.active_goal.copy(), "active", "active_entropy_density_score", 0.0)
 
 
