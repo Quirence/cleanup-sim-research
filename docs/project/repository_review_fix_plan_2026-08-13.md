@@ -52,20 +52,30 @@
 
 Волна 1 полностью закрыта. Полный набор тестов после волны 1: 123 passed.
 
-## Волна 2 — новые тесты на непокрытые модули cleanup_sim_v2 (следующий проход)
+## Волна 2 — новые тесты на непокрытые модули cleanup_sim_v2 (закрыта)
 
-- [ ] 6. `cleanup_sim_v2/metrics.py` — прямые тесты (`occupancy_from_count`,
+- [x] 6. `cleanup_sim_v2/metrics.py` — прямые тесты (`occupancy_from_count`,
       `map_quality`, `auc_by_path`, `value_at_path`, `sensor_metrics`); сейчас
       покрыт только косвенно через `np.isfinite(...)` в smoke-тестах.
-- [ ] 7. `cleanup_sim_v2/mapping.py` — прямые тесты `predict_density_map`,
+      **Готово** (`30c43d0`, `tests/test_cleanup_sim_v2_metrics.py`).
+- [x] 7. `cleanup_sim_v2/mapping.py` — прямые тесты `predict_density_map`,
       `update_density_map`, `entropy`, `visible_cell_mask`, `suppress_collected_area`.
-- [ ] 8. `cleanup_sim_v2/sensors.py` — прямые тесты `detect_with_suite`,
+      **Готово** (`f7c2bb3`, `tests/test_cleanup_sim_v2_mapping.py`).
+- [x] 8. `cleanup_sim_v2/sensors.py` — прямые тесты `detect_with_suite`,
       `in_sensor_fov` (включая wrap на ±180°), `detection_probability`, `_sample_clutter`.
-- [ ] 9. `cleanup_sim_v2/io.py` — тесты `git_commit`, `git_dirty`, `save_run`
+      **Готово** (`9f15cf5`, `tests/test_cleanup_sim_v2_sensors.py`).
+- [x] 9. `cleanup_sim_v2/io.py` — тесты `git_commit`, `git_dirty`, `save_run`
       (сейчас покрыт только `config_hash`).
-- [ ] 10. `cleanup_sim_v2/run_once.py` и реальный прогон `run_experiments()`
+      **Готово** (`59864d2`, `tests/test_cleanup_sim_v2_io.py`; git_commit/git_dirty
+      fallback-путь проверен реальным запуском вне git-репозитория, без mock).
+- [x] 10. `cleanup_sim_v2/run_once.py` и реальный прогон `run_experiments()`
       (включая `--checkpoint`/`--resume`) — сейчас у `run_experiments` тестируется
       только argparse-поверхность.
+      **Готово** (`503a673`, `tests/test_cleanup_sim_v2_cli_execution.py`).
+
+Волна 2 полностью закрыта. Полный набор тестов после волны 2: 161 passed
+(было 123 после волны 1; +10 metrics, +8 mapping, +10 sensors, +6 io,
++4 CLI execution = +38, финальное число подтверждено `pytest -q`).
 
 ## Волна 3 — рефакторинг с реальным риском регрессии (отдельный проход, не начинать без явного запроса)
 
