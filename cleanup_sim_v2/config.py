@@ -182,6 +182,11 @@ class PlannerConfig:
     belief_cluster_route_min_points: int = 2
     belief_cluster_route_switch_margin: float = 1.0
     belief_cluster_route_confirmed_followups_only: bool = True
+    # Fallback weight when a candidate's swept-path expected collection underestimates its
+    # value: score = max(swept_expected_collection, belief_cluster_route_density_prior_weight
+    # * local_density). Distinct from belief_orienteering_target_density_prior_weight below -
+    # each algorithm's blend weight is tuned independently, not meant to be shared.
+    belief_cluster_route_density_prior_weight: float = 0.35
     belief_orienteering_candidate_count: int = 16
     belief_orienteering_depth: int = 3
     belief_orienteering_min_route_points: int = 2
@@ -194,6 +199,11 @@ class PlannerConfig:
     belief_orienteering_density_enabled: bool = True
     belief_orienteering_entropy_enabled: bool = False
     belief_orienteering_density_prior_weight: float = 0.15
+    # Same max(swept, weight * local_density) fallback blend as
+    # belief_cluster_route_density_prior_weight above, but for confirmed/provisional target
+    # candidates specifically (density_peak candidates use
+    # belief_orienteering_density_prior_weight instead, additively).
+    belief_orienteering_target_density_prior_weight: float = 0.2
     belief_orienteering_min_density_swept_count: float = 0.6
     belief_transect_collection_speed_enabled: bool = True
     belief_collection_speed_expected_count_threshold: float = 1.0

@@ -771,7 +771,7 @@ def _cluster_route_individual_score(
     information = _local_entropy_gain(density_map, candidate.focus, planner.candidate_spacing_m)
     target_confirmation = candidate.confidence if candidate.kind.startswith("confirmed_target") else 0.0
     benefit = (
-        planner.belief_expected_collection_weight * max(swept, 0.35 * local_density)
+        planner.belief_expected_collection_weight * max(swept, planner.belief_cluster_route_density_prior_weight * local_density)
         + planner.belief_information_gain_weight * information
         + planner.belief_target_confirmation_weight * target_confirmation
     )
@@ -956,7 +956,7 @@ def _augment_fallback_with_cluster_route(
             target_confirmation = candidate.confidence if candidate.kind.startswith("confirmed_target") else 0.0
             stale_risk = min(1.0, candidate.age_s / max(1.0, planner.target_stale_after_s))
             benefit = (
-                planner.belief_expected_collection_weight * max(expected_collection, 0.35 * local_density)
+                planner.belief_expected_collection_weight * max(expected_collection, planner.belief_cluster_route_density_prior_weight * local_density)
                 + planner.belief_information_gain_weight * information_gain
                 + planner.belief_target_confirmation_weight * target_confirmation
             )
@@ -1213,7 +1213,7 @@ def _orienteering_leg_components(
     if candidate.kind == "density_peak":
         collection_value = expected_collection + planner.belief_orienteering_density_prior_weight * local_density
     elif _is_target_candidate(candidate.kind):
-        collection_value = max(expected_collection, 0.2 * local_density)
+        collection_value = max(expected_collection, planner.belief_orienteering_target_density_prior_weight * local_density)
     else:
         collection_value = expected_collection
     benefit = (

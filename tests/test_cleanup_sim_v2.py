@@ -368,6 +368,22 @@ def test_belief_provisional_modes_enable_only_provisional_targets() -> None:
     assert provisional_orienteering.planner.belief_orienteering_depth == base_orienteering.planner.belief_orienteering_depth
 
 
+def test_density_prior_blend_weights_are_named_and_independently_tunable() -> None:
+    """belief_cluster_route and belief_orienteering each had their own hardcoded
+    max(swept, weight * local_density) fallback constant (0.35 and 0.2 respectively).
+    Now that they're named PlannerConfig fields, lock in that they default to the same
+    values as before (no behavior change from the refactor) and stay independently
+    configurable rather than silently sharing one value."""
+    cfg = scenario_config("static_calm", 0, "belief_horizon")
+    assert cfg.planner.belief_cluster_route_density_prior_weight == 0.35
+    assert cfg.planner.belief_orienteering_target_density_prior_weight == 0.2
+    assert cfg.planner.belief_cluster_route_density_prior_weight != cfg.planner.belief_orienteering_target_density_prior_weight
+
+    tuned = replace(cfg, planner=replace(cfg.planner, belief_cluster_route_density_prior_weight=0.5))
+    assert tuned.planner.belief_cluster_route_density_prior_weight == 0.5
+    assert tuned.planner.belief_orienteering_target_density_prior_weight == 0.2
+
+
 def test_belief_orienteering_ablation_modes_change_exact_component() -> None:
     base = scenario_config("weak_drift", 0, "belief_orienteering")
     depth1 = scenario_config("weak_drift", 0, "belief_orienteering_depth1")
