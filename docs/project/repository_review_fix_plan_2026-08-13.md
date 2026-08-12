@@ -12,7 +12,7 @@
 
 ## Волна 1 — безопасные точечные фиксы (этот проход)
 
-- [ ] 1. `next_active` тихо использует одноразовый `PlatformConfig()`/`PlannerState()`
+- [x] 1. `next_active` тихо использует одноразовый `PlatformConfig()`/`PlannerState()`
       на fallback-пути вместо реальных `platform`/`state`, которые уже есть в
       обоих вызывающих местах. Добавить параметры `platform`, `state` в сигнатуру,
       прокинуть их из `next_belief_horizon` (строка ~602) и `choose_goal`'s
@@ -21,29 +21,36 @@
       менять без риска сломать тесты; добавить один новый тест, что fallback
       использует переданный `platform`/`state`, а не дефолтный.
       (`cleanup_sim_v2/planners.py:139-160,602,1526`)
+      **Готово** (`1b50b3e`, mutation-verified).
 
-- [ ] 2. Магические веса `0.35` (дважды в `belief_cluster_route`-скоринге) и `0.2`
+- [x] 2. Магические веса `0.35` (дважды в `belief_cluster_route`-скоринге) и `0.2`
       (в `_orienteering_leg_components` для target-кандидатов) — вынести в именованные
       поля `PlannerConfig` с сохранением текущих значений (без изменения поведения),
       снять двусмысленность "баг или задумано" явным именем/комментарием, а не
       гадать. Не трогать отдельный `belief_orienteering_density_prior_weight`
       (это уже именованный, другой концептуально путь — additive для density_peak).
       (`cleanup_sim_v2/planners.py:767,952,1209`, `cleanup_sim_v2/config.py`)
+      **Готово** (`e2ed2d6`).
 
-- [ ] 3. Добавить `dev` в триггеры CI (`.github/workflows/tests.yml`), чтобы
+- [x] 3. Добавить `dev` в триггеры CI (`.github/workflows/tests.yml`), чтобы
       активная ветка разработки тоже проверялась, не только `main`.
+      **Готово** (`1a9e0f2`).
 
-- [ ] 4. Обновить `README.md` и `README_WORKFLOW.md`: упомянуть `cleanup_sim_v2`
+- [x] 4. Обновить `README.md` и `README_WORKFLOW.md`: упомянуть `cleanup_sim_v2`
       как актуальный симулятор, `cleanup_sim` как legacy, актуализировать
       команду проверки и число тестов, убрать ссылки на устаревший
       `docs/article/stage2/stage2_repair_and_final_experiment_plan.md` как
       единственный источник истины.
+      **Готово** (`f6f9d7d`).
 
-- [ ] 5. Ужесточить рыхлые assert-ы в `tests/test_cleanup_sim_v2.py`, отмеченные
+- [x] 5. Ужесточить рыхлые assert-ы в `tests/test_cleanup_sim_v2.py`, отмеченные
       ревью (`in {"density_peak", "density_transect", "entropy_peak"}` и
       `"provisional_target" in kinds or "provisional_target_transect" in kinds`)
       — заменить на точное ожидаемое значение там, где сценарий уже это
       гарантирует.
+      **Готово** (`3c3cd24`).
+
+Волна 1 полностью закрыта. Полный набор тестов после волны 1: 123 passed.
 
 ## Волна 2 — новые тесты на непокрытые модули cleanup_sim_v2 (следующий проход)
 
