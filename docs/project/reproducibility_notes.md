@@ -1,5 +1,7 @@
 # Воспроизводимость проекта
 
+> **Историческая заметка (2026-08-13):** раздел "Быстрая Проверка" ниже и "Научная Оговорка" написаны под legacy `cleanup_sim` (`hybrid_final_v1`, pre-final smoke) и не отражают текущий `cleanup_sim_v2`. Актуальная быстрая проверка добавлена отдельным блоком ниже; актуальный научный статус — `docs/project/simulator_v2_1_closure_report.md`.
+
 Дата: 2026-07-31
 
 Назначение: дать минимальный воспроизводимый маршрут для коллеги, который поднимает репозиторий с нуля и проверяет, что кодовая база находится в рабочем состоянии.
@@ -29,7 +31,23 @@ python -m pip install -r requirements.txt
 python -m pytest
 ```
 
-## Быстрая Проверка
+## Быстрая проверка (актуальная, cleanup_sim_v2)
+
+```powershell
+python -m cleanup_sim_v2.run_experiments `
+  --seeds 3 `
+  --scenarios static_calm weak_drift `
+  --modes greedy belief_horizon oracle_current_physics `
+  --out-dir out/cleanup_sim_v2/dev_smoke
+```
+
+Ожидаемые свойства:
+
+- команда завершается без исключений;
+- появляются `summary.csv`, `aggregate_mean_std.csv`, `run_manifest.json`;
+- файлы создаются внутри `out/`, который игнорируется git.
+
+## Быстрая проверка (историческая, legacy cleanup_sim)
 
 Минимальный smoke без сохранения тяжелых артефактов в git:
 
