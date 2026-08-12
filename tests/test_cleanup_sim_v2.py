@@ -752,7 +752,7 @@ def test_belief_horizon_scores_swept_density_without_truth_access() -> None:
 
     assert decision.mode == "belief_horizon"
     assert decision.details["score_expected_collection"] > 0.0
-    assert decision.details["candidate_type"] in {"density_peak", "density_transect", "entropy_peak"}
+    assert decision.details["candidate_type"] == "density_peak"
 
 
 def test_belief_horizon_uses_coverage_when_prior_has_no_density_signal() -> None:
@@ -965,8 +965,8 @@ def test_provisional_track_does_not_suppress_density_candidates() -> None:
     )
     kinds = {kind for _, kind, *_ in candidates}
 
-    assert "provisional_target" in kinds or "provisional_target_transect" in kinds
-    assert "density_peak" in kinds or "density_transect" in kinds
+    assert "provisional_target" in kinds
+    assert "density_peak" in kinds
 
 
 def test_belief_horizon_builds_local_sweep_for_ready_camera_target() -> None:
