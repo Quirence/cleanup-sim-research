@@ -14,7 +14,6 @@ venv/
 env/
 
 # Local generated outputs
-out/
 _delete_later/
 
 # Source PDFs and private/local materials
