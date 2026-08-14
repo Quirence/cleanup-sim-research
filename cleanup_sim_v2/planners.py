@@ -46,6 +46,13 @@ class GoalDecision:
     point: np.ndarray
     mode: str
     reason: str
+    # Not a probability or an expected count, despite the name (kept as-is because it is
+    # also the key "expected_value" persisted into simulation.py's events output - renaming
+    # the field without renaming that on-disk column would just move the confusion). For
+    # oracle/coverage/route modes this is a meaningless placeholder constant (0.0 or 1.0).
+    # For belief_* modes it is the real multi-term score computed by _efficiency_score
+    # (or next_belief_horizon's non-efficiency branch), in mode-specific arbitrary units -
+    # comparable across candidates within one choose_goal call, not across modes.
     expected_value: float
     details: dict[str, float | str] = field(default_factory=dict)
 
@@ -136,7 +143,14 @@ def candidate_waypoints(world: WorldConfig, planner: PlannerConfig) -> np.ndarra
     return np.column_stack([xx.ravel(), yy.ravel()])
 
 
-def next_active(current: np.ndarray, density_map: DensityMap, world: WorldConfig, planner: PlannerConfig) -> np.ndarray:
+def next_active(
+    current: np.ndarray,
+    state: PlannerState,
+    density_map: DensityMap,
+    world: WorldConfig,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+) -> np.ndarray:
     candidates = candidate_waypoints(world, planner)
     occ = density_map.occupancy
     h = entropy(occ)
@@ -156,7 +170,7 @@ def next_active(current: np.ndarray, density_map: DensityMap, world: WorldConfig
             - planner.active_distance_weight * travel
         )
     if not np.isfinite(scores).any():
-        return next_greedy(PlannerState(coverage_route=[]), density_map, current, PlatformConfig())
+        return next_greedy(state, density_map, current, platform)
     return candidates[int(np.argmax(scores))].astype(float)
 
 
@@ -183,6 +197,14 @@ def _top_grid_points(
         if len(points) >= count:
             break
     return points
+
+
+def _efficiency_score(planner: PlannerConfig, benefit: float, risk: float, effort_m: float) -> float:
+    """Shared benefit/effort scoring formula used by every belief_* planner's efficiency
+    path: scale * benefit / effort - risk. `effort_m` must already be floored by the
+    caller (typically max(travel_or_route_length, platform.collection_approach_radius_m)) -
+    this helper does not know about platform, only about the already-computed effort."""
+    return planner.belief_efficiency_scale_m * benefit / effort_m - risk
 
 
 def _relative_signal(values: np.ndarray) -> float:
@@ -599,7 +621,7 @@ def next_belief_horizon(
 
     candidates = _belief_candidates(current, state, density_map, world, platform, planner, targets, t_s)
     if not candidates:
-        point = next_active(current, density_map, world, planner)
+        point = next_active(current, state, density_map, world, platform, planner)
         return GoalDecision(point, "belief_horizon", "belief_fallback_active", 0.0, {"candidate_type": "fallback"})
 
     best: GoalDecision | None = None
@@ -638,7 +660,7 @@ def next_belief_horizon(
         )
         effort_m = max(path_cost, platform.collection_approach_radius_m)
         if planner.belief_efficiency_score:
-            score = planner.belief_efficiency_scale_m * benefit / effort_m - risk_penalty
+            score = _efficiency_score(planner, benefit, risk_penalty, effort_m)
         else:
             score = (
                 benefit
@@ -764,13 +786,13 @@ def _cluster_route_individual_score(
     information = _local_entropy_gain(density_map, candidate.focus, planner.candidate_spacing_m)
     target_confirmation = candidate.confidence if candidate.kind.startswith("confirmed_target") else 0.0
     benefit = (
-        planner.belief_expected_collection_weight * max(swept, 0.35 * local_density)
+        planner.belief_expected_collection_weight * max(swept, planner.belief_cluster_route_density_prior_weight * local_density)
         + planner.belief_information_gain_weight * information
         + planner.belief_target_confirmation_weight * target_confirmation
     )
     stale_risk = min(1.0, candidate.age_s / max(1.0, planner.target_stale_after_s))
     risk = planner.belief_stale_target_risk_weight * stale_risk
-    return planner.belief_efficiency_scale_m * benefit / max(travel, platform.collection_approach_radius_m) - risk
+    return _efficiency_score(planner, benefit, risk, max(travel, platform.collection_approach_radius_m))
 
 
 def _cluster_route_endpoint(
@@ -866,7 +888,7 @@ def _score_cluster_route(
         planner.belief_empty_goal_risk_weight * empty_risk_total / point_count
         + planner.belief_stale_target_risk_weight * stale_risk_total / point_count
     )
-    score = planner.belief_efficiency_scale_m * benefit / max(route_length, platform.collection_approach_radius_m) - risk_penalty
+    score = _efficiency_score(planner, benefit, risk_penalty, max(route_length, platform.collection_approach_radius_m))
     details: dict[str, float | str] = {
         "candidate_type": "cluster_route_transect",
         "score_total": float(score),
@@ -949,7 +971,7 @@ def _augment_fallback_with_cluster_route(
             target_confirmation = candidate.confidence if candidate.kind.startswith("confirmed_target") else 0.0
             stale_risk = min(1.0, candidate.age_s / max(1.0, planner.target_stale_after_s))
             benefit = (
-                planner.belief_expected_collection_weight * max(expected_collection, 0.35 * local_density)
+                planner.belief_expected_collection_weight * max(expected_collection, planner.belief_cluster_route_density_prior_weight * local_density)
                 + planner.belief_information_gain_weight * information_gain
                 + planner.belief_target_confirmation_weight * target_confirmation
             )
@@ -957,10 +979,7 @@ def _augment_fallback_with_cluster_route(
                 planner.belief_empty_goal_risk_weight * float(np.exp(-max(0.0, expected_collection)))
                 + planner.belief_stale_target_risk_weight * stale_risk
             )
-            marginal_score = (
-                planner.belief_efficiency_scale_m * benefit / max(added_distance, platform.collection_approach_radius_m)
-                - risk_penalty
-            )
+            marginal_score = _efficiency_score(planner, benefit, risk_penalty, max(added_distance, platform.collection_approach_radius_m))
             if marginal_score > best_score:
                 best_score = marginal_score
                 best_candidate = candidate
@@ -1180,7 +1199,7 @@ def _orienteering_single_candidate_score(
 ) -> float:
     leg = _orienteering_leg_components(density_map, current, candidate, world, platform, planner)
     effort = max(leg["distance_m"], platform.collection_approach_radius_m)
-    return planner.belief_efficiency_scale_m * leg["benefit"] / effort - leg["risk"]
+    return _efficiency_score(planner, leg["benefit"], leg["risk"], effort)
 
 
 def _orienteering_leg_components(
@@ -1206,7 +1225,7 @@ def _orienteering_leg_components(
     if candidate.kind == "density_peak":
         collection_value = expected_collection + planner.belief_orienteering_density_prior_weight * local_density
     elif _is_target_candidate(candidate.kind):
-        collection_value = max(expected_collection, 0.2 * local_density)
+        collection_value = max(expected_collection, planner.belief_orienteering_target_density_prior_weight * local_density)
     else:
         collection_value = expected_collection
     benefit = (
@@ -1236,7 +1255,7 @@ def _orienteering_beam_score(beam: _OrienteeringBeam, platform: PlatformConfig, 
     if not beam.route:
         return -np.inf
     effort = max(beam.length_m, platform.collection_approach_radius_m)
-    return planner.belief_efficiency_scale_m * beam.benefit / effort - beam.risk
+    return _efficiency_score(planner, beam.benefit, beam.risk, effort)
 
 
 def _candidate_repeated_in_route(
@@ -1274,10 +1293,9 @@ def _expand_orienteering_beams(
             new_map = _discount_swept_density(beam.work_map, start, goal, platform, planner)
             first_leg_score = beam.first_leg_score
             if not beam.route:
-                first_leg_score = planner.belief_efficiency_scale_m * leg["benefit"] / max(
-                    leg["distance_m"],
-                    platform.collection_approach_radius_m,
-                ) - leg["risk"]
+                first_leg_score = _efficiency_score(
+                    planner, leg["benefit"], leg["risk"], max(leg["distance_m"], platform.collection_approach_radius_m)
+                )
             expanded.append(
                 _OrienteeringBeam(
                     route=[*beam.route, goal.copy()],
@@ -1523,7 +1541,7 @@ def choose_goal(
     active_reached = state.active_goal is not None and np.linalg.norm(state.active_goal - current) <= platform.arrival_tolerance_m
     if state.active_goal is None or active_reached or t_s - state.last_replan_t_s >= planner.replan_interval_s:
         state.last_replan_t_s = t_s
-        state.active_goal = next_active(current, density_map, world, planner)
+        state.active_goal = next_active(current, state, density_map, world, platform, planner)
     return GoalDecision(state.active_goal.copy(), "active", "active_entropy_density_score", 0.0)
 
 

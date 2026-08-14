@@ -17,8 +17,20 @@ from cleanup_sim_v2.config import (
 )
 from cleanup_sim_v2.io import config_hash
 from cleanup_sim_v2.hydrodynamics import drift_debris
-from cleanup_sim_v2.mapping import init_density_map, make_grid
-from cleanup_sim_v2.planners import _belief_candidates, choose_goal, initial_state, make_coverage_route
+from cleanup_sim_v2.mapping import DensityMap, init_density_map, make_grid
+from cleanup_sim_v2.planners import (
+    _OrienteeringBeam,
+    _belief_candidates,
+    _expand_orienteering_beams,
+    _orienteering_beam_score,
+    _orienteering_candidates,
+    _orienteering_single_candidate_score,
+    candidate_waypoints,
+    choose_goal,
+    initial_state,
+    make_coverage_route,
+    next_active,
+)
 from cleanup_sim_v2.run_experiments import ALL_MODES, BASELINE_MODES, build_parser as build_experiment_parser
 from cleanup_sim_v2.sensors import Detection, detect_with_sensor
 from cleanup_sim_v2.simulation import _motion_speed, run_simulation
@@ -356,6 +368,22 @@ def test_belief_provisional_modes_enable_only_provisional_targets() -> None:
     assert provisional_orienteering.planner.belief_orienteering_depth == base_orienteering.planner.belief_orienteering_depth
 
 
+def test_density_prior_blend_weights_are_named_and_independently_tunable() -> None:
+    """belief_cluster_route and belief_orienteering each had their own hardcoded
+    max(swept, weight * local_density) fallback constant (0.35 and 0.2 respectively).
+    Now that they're named PlannerConfig fields, lock in that they default to the same
+    values as before (no behavior change from the refactor) and stay independently
+    configurable rather than silently sharing one value."""
+    cfg = scenario_config("static_calm", 0, "belief_horizon")
+    assert cfg.planner.belief_cluster_route_density_prior_weight == 0.35
+    assert cfg.planner.belief_orienteering_target_density_prior_weight == 0.2
+    assert cfg.planner.belief_cluster_route_density_prior_weight != cfg.planner.belief_orienteering_target_density_prior_weight
+
+    tuned = replace(cfg, planner=replace(cfg.planner, belief_cluster_route_density_prior_weight=0.5))
+    assert tuned.planner.belief_cluster_route_density_prior_weight == 0.5
+    assert tuned.planner.belief_orienteering_target_density_prior_weight == 0.2
+
+
 def test_belief_orienteering_ablation_modes_change_exact_component() -> None:
     base = scenario_config("weak_drift", 0, "belief_orienteering")
     depth1 = scenario_config("weak_drift", 0, "belief_orienteering_depth1")
@@ -380,6 +408,267 @@ def test_belief_orienteering_ablation_modes_change_exact_component() -> None:
     assert density_disabled.planner.belief_orienteering_depth == base.planner.belief_orienteering_depth
     assert density_disabled.planner.belief_orienteering_opportunity_cost_weight == base.planner.belief_orienteering_opportunity_cost_weight
     assert density_disabled.planner.belief_orienteering_density_enabled is False
+
+
+def test_belief_horizon_efficiency_ablation_changes_score_for_same_candidate() -> None:
+    """belief_efficiency_score switches the benefit/effort normalization used in the score
+    formula. For an identical candidate this must change score_total even though both configs
+    pick the same point — mirrors test_hybrid.py's test_active_no_distance_removes_travel_penalty,
+    which compares a scoring function's output before/after an ablation rather than only the
+    resulting dataclass field."""
+
+    def _decision(efficiency: bool):
+        cfg = scenario_config("static_calm", 0, "belief_horizon")
+        cfg = replace(
+            cfg,
+            world=WorldConfig(width_m=150.0, height_m=100.0, depot_x_m=5.0, depot_y_m=50.0, n_debris=1),
+            planner=replace(cfg.planner, belief_efficiency_score=efficiency),
+            grid=replace(cfg.grid, nx=75, ny=50),
+        )
+        grid = make_grid(cfg.world, cfg.grid)
+        density_map = init_density_map(grid, cfg.grid, cfg.world)
+        density_map.expected_count *= 0.0
+        density_map.expected_count[(np.abs(grid.yy - 50.0) <= 1.5) & (np.abs(grid.xx - 120.0) <= 2.0)] = 8.0
+        return choose_goal(
+            0.0,
+            np.array(cfg.world.depot, dtype=float),
+            initial_state(cfg.world, cfg.planner),
+            density_map,
+            cfg.world,
+            cfg.platform,
+            cfg.planner,
+            TargetQueue(cfg.planner),
+            field=None,
+        )
+
+    with_efficiency = _decision(True)
+    without_efficiency = _decision(False)
+
+    # Same underlying candidate (same benefit/effort inputs) under both configs ...
+    assert with_efficiency.details["candidate_type"] == without_efficiency.details["candidate_type"]
+    assert with_efficiency.details["score_benefit"] == without_efficiency.details["score_benefit"]
+    assert with_efficiency.details["score_effort_m"] == without_efficiency.details["score_effort_m"]
+    assert np.allclose(with_efficiency.point, without_efficiency.point)
+    # ... but the normalization changes the resulting score by a wide margin.
+    assert abs(with_efficiency.details["score_total"] - without_efficiency.details["score_total"]) > 1.0
+
+
+def test_belief_horizon_refinement_ablation_skips_standoff_waypoint() -> None:
+    def _decision(refine: bool):
+        cfg = scenario_config("static_calm", 0, "belief_horizon")
+        cfg = replace(
+            cfg,
+            world=WorldConfig(width_m=60.0, height_m=40.0, depot_x_m=5.0, depot_y_m=20.0, n_debris=1),
+            planner=replace(
+                cfg.planner,
+                belief_refinement_enabled=refine,
+                belief_candidate_count=5,
+                belief_density_peak_count=0,
+                belief_entropy_peak_count=0,
+                belief_path_cost_weight=0.0,
+            ),
+            grid=replace(cfg.grid, nx=30, ny=20),
+        )
+        grid = make_grid(cfg.world, cfg.grid)
+        density_map = init_density_map(grid, cfg.grid, cfg.world)
+        target_queue = TargetQueue(cfg.planner)
+        det = Detection(
+            "radar",
+            np.array([40.0, 20.0]),
+            0.9,
+            source_index=None,
+            is_false=False,
+            range_m=30.0,
+            localization_sigma_m=4.0,
+        )
+        target_queue.add_detections([det, det], 0.0, cfg.world)
+        return choose_goal(
+            0.0,
+            np.array(cfg.world.depot, dtype=float),
+            initial_state(cfg.world, cfg.planner),
+            density_map,
+            cfg.world,
+            cfg.platform,
+            cfg.planner,
+            target_queue,
+            field=None,
+        )
+
+    with_refinement = _decision(True)
+    without_refinement = _decision(False)
+
+    assert with_refinement.details["candidate_type"] == "confirmed_target_refine"
+    assert without_refinement.details["candidate_type"] == "confirmed_target"
+    # Refinement aims at a standoff point short of the imprecise detection; disabling it
+    # drives straight at the raw (uncertain) position instead.
+    assert with_refinement.point[0] < without_refinement.point[0]
+    assert np.allclose(without_refinement.point, [40.0, 20.0])
+
+
+def test_belief_orienteering_density_ablation_removes_density_candidates() -> None:
+    def _candidates(density_enabled: bool):
+        cfg = scenario_config("static_calm", 0, "belief_orienteering")
+        cfg = replace(
+            cfg,
+            world=WorldConfig(width_m=100.0, height_m=80.0, depot_x_m=5.0, depot_y_m=40.0, n_debris=1),
+            planner=replace(cfg.planner, belief_orienteering_density_enabled=density_enabled),
+            grid=replace(cfg.grid, nx=50, ny=40),
+        )
+        grid = make_grid(cfg.world, cfg.grid)
+        density_map = init_density_map(grid, cfg.grid, cfg.world)
+        density_map.expected_count *= 0.0
+        density_map.expected_count[(np.abs(grid.yy - 40.0) <= 2.0) & (np.abs(grid.xx - 45.0) <= 3.0)] = 10.0
+        state = initial_state(cfg.world, cfg.planner)
+        return _orienteering_candidates(
+            np.array(cfg.world.depot, dtype=float),
+            state,
+            density_map,
+            cfg.world,
+            cfg.platform,
+            cfg.planner,
+            TargetQueue(cfg.planner),
+            0.0,
+        )
+
+    with_density = _candidates(True)
+    without_density = _candidates(False)
+
+    assert any(candidate.kind == "density_peak" for candidate in with_density)
+    assert without_density == []
+
+
+def _orienteering_two_target_scene(depth: int):
+    cfg = scenario_config("static_calm", 0, "belief_orienteering")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=150.0, height_m=100.0, depot_x_m=5.0, depot_y_m=50.0, n_debris=1),
+        planner=replace(cfg.planner, belief_orienteering_depth=depth),
+        grid=replace(cfg.grid, nx=75, ny=50),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    target_queue = TargetQueue(cfg.planner)
+    near = Detection("camera", np.array([40.0, 50.0]), 0.95, source_index=None, is_false=False, range_m=15.0, localization_sigma_m=0.5)
+    far = Detection("camera", np.array([70.0, 60.0]), 0.95, source_index=None, is_false=False, range_m=15.0, localization_sigma_m=0.5)
+    target_queue.add_detections([near, near, far, far], 0.0, cfg.world)
+    state = initial_state(cfg.world, cfg.planner)
+    current = np.array(cfg.world.depot, dtype=float)
+    candidates = _orienteering_candidates(current, state, density_map, cfg.world, cfg.platform, cfg.planner, target_queue, 0.0)
+    return cfg, density_map, current, candidates
+
+
+def _expand_all_beams(cfg, density_map, current, candidates) -> list[_OrienteeringBeam]:
+    beams = [
+        _OrienteeringBeam(
+            route=[],
+            foci=[],
+            kinds=[],
+            cursor=current.copy(),
+            work_map=DensityMap(grid=density_map.grid, expected_count=density_map.expected_count.copy()),
+        )
+    ]
+    completed: list[_OrienteeringBeam] = []
+    for depth_index in range(max(1, cfg.planner.belief_orienteering_depth)):
+        beams = _expand_orienteering_beams(beams, candidates, cfg.world, cfg.platform, cfg.planner, depth_index)
+        completed.extend(beams)
+        if not beams:
+            break
+    return completed
+
+
+def test_belief_orienteering_depth_ablation_limits_beam_route_length() -> None:
+    depth1_completed = _expand_all_beams(*_orienteering_two_target_scene(depth=1))
+    depth3_completed = _expand_all_beams(*_orienteering_two_target_scene(depth=3))
+
+    depth1_max_route = max((len(beam.route) for beam in depth1_completed), default=0)
+    depth3_max_route = max((len(beam.route) for beam in depth3_completed), default=0)
+
+    # With two well-separated confirmed targets, depth=1 can never chain a second leg onto a
+    # beam, while depth=3 can visit both.
+    assert depth1_max_route == 1
+    assert depth3_max_route == 2
+
+
+def test_belief_orienteering_opportunity_cost_ablation_changes_beam_score() -> None:
+    cfg, density_map, current, candidates = _orienteering_two_target_scene(depth=3)
+    completed = _expand_all_beams(cfg, density_map, current, candidates)
+
+    single_scores = [
+        _orienteering_single_candidate_score(current, candidate, density_map, cfg.world, cfg.platform, cfg.planner)
+        for candidate in candidates
+    ]
+    best_single_score = max(single_scores)
+
+    # A single-leg beam that scores worse alone than the best single candidate carries a real
+    # opportunity cost from not going straight to the better target.
+    penalized = next(
+        beam
+        for beam in completed
+        if len(beam.route) == 1 and (best_single_score - beam.first_leg_score) > 0.01
+    )
+    raw_score = _orienteering_beam_score(penalized, cfg.platform, cfg.planner)
+    opportunity_loss = max(0.0, best_single_score - penalized.first_leg_score)
+    assert opportunity_loss > 0.0
+
+    assert cfg.planner.belief_orienteering_opportunity_cost_weight > 0.0
+    with_weight = raw_score - cfg.planner.belief_orienteering_opportunity_cost_weight * opportunity_loss
+    without_weight = raw_score - 0.0 * opportunity_loss
+
+    assert without_weight == raw_score
+    assert with_weight < without_weight
+
+
+def test_belief_horizon_track_prediction_ablation_changes_trajectory_under_drift() -> None:
+    def _run(predict: bool):
+        cfg = scenario_config("weak_drift", 3, "belief_horizon")
+        cfg = replace(cfg, planner=replace(cfg.planner, belief_track_prediction_enabled=predict))
+        cfg = replace(cfg, platform=replace(cfg.platform, max_path_m=400.0, tmax_s=800.0))
+        return run_simulation(cfg)
+
+    with_prediction = _run(True)
+    without_prediction = _run(False)
+
+    assert with_prediction.summary["collected_ratio"] != without_prediction.summary["collected_ratio"]
+    last_with = with_prediction.events.iloc[-1][["x", "y"]].to_numpy(dtype=float)
+    last_without = without_prediction.events.iloc[-1][["x", "y"]].to_numpy(dtype=float)
+    # Drift-prediction changes where confirmed targets appear to be, which changes routing
+    # decisions enough to produce a materially different final trajectory.
+    assert np.linalg.norm(last_with - last_without) > 10.0
+
+
+def test_next_active_fallback_uses_real_platform_and_state_not_defaults() -> None:
+    """next_active's argmax-over-candidates path can fall through to next_greedy when
+    every candidate waypoint is filtered out. That fallback used to build a throwaway
+    PlannerState()/PlatformConfig() instead of threading the caller's real objects, which
+    silently discarded greedy_suppressed (the tabu memory of already-visited cells) and
+    any non-default platform tolerances."""
+    cfg = scenario_config("static_calm", 0, "active")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=10.0, height_m=10.0, depot_x_m=5.0, depot_y_m=5.0, n_debris=1),
+        grid=replace(cfg.grid, nx=10, ny=10),
+    )
+    # A world this small leaves no candidate waypoints (coverage_margin_m=6 on each
+    # side of a 10 m world), which is exactly what forces next_active's fallback branch.
+    assert candidate_waypoints(cfg.world, cfg.planner).shape[0] == 0
+
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    density_map.expected_count[(np.abs(grid.yy - 2.0) <= 0.5) & (np.abs(grid.xx - 2.0) <= 0.5)] = 10.0
+    density_map.expected_count[(np.abs(grid.yy - 8.0) <= 0.5) & (np.abs(grid.xx - 8.0) <= 0.5)] = 3.0
+    current = np.array([5.0, 5.0], dtype=float)
+
+    state = initial_state(cfg.world, cfg.planner)
+    state.greedy_suppressed = np.zeros_like(density_map.expected_count, dtype=bool)
+    state.greedy_suppressed[(np.abs(grid.yy - 2.0) <= 0.5) & (np.abs(grid.xx - 2.0) <= 0.5)] = True
+
+    point = next_active(current, state, density_map, cfg.world, cfg.platform, cfg.planner)
+
+    # A fresh, unsuppressed state/default platform would pick the higher (2, 2) peak.
+    # Respecting the real, suppressed state must pick the lower (8, 8) peak instead.
+    assert point[0] > 5.0
+    assert point[1] > 5.0
 
 
 def test_config_hash_changes_when_significant_parameter_changes() -> None:
@@ -463,7 +752,7 @@ def test_belief_horizon_scores_swept_density_without_truth_access() -> None:
 
     assert decision.mode == "belief_horizon"
     assert decision.details["score_expected_collection"] > 0.0
-    assert decision.details["candidate_type"] in {"density_peak", "density_transect", "entropy_peak"}
+    assert decision.details["candidate_type"] == "density_peak"
 
 
 def test_belief_horizon_uses_coverage_when_prior_has_no_density_signal() -> None:
@@ -676,8 +965,8 @@ def test_provisional_track_does_not_suppress_density_candidates() -> None:
     )
     kinds = {kind for _, kind, *_ in candidates}
 
-    assert "provisional_target" in kinds or "provisional_target_transect" in kinds
-    assert "density_peak" in kinds or "density_transect" in kinds
+    assert "provisional_target" in kinds
+    assert "density_peak" in kinds
 
 
 def test_belief_horizon_builds_local_sweep_for_ready_camera_target() -> None:

@@ -25,7 +25,9 @@ MODE_CHOICES: list[PlannerMode] = [
     "active_no_distance",
     "active",
     "detected_tsp",
+    "graph_mst",
     "hybrid",
+    "hybrid_mst",
 ]
 DEFAULT_MODES: list[PlannerMode] = [
     "lawnmower_sparse",

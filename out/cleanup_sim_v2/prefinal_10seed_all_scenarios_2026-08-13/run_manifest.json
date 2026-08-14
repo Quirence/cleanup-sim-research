@@ -1,0 +1,32 @@
+{
+  "runner": "cleanup_sim_v2.run_experiments",
+  "git_commit": "317f685",
+  "git_dirty": false,
+  "seeds": 10,
+  "scenarios": [
+    "static_calm",
+    "weak_drift",
+    "strong_drift",
+    "robot_disturbed"
+  ],
+  "modes": [
+    "lawnmower_collect",
+    "greedy",
+    "confirmed_route",
+    "belief_horizon",
+    "belief_horizon_no_efficiency",
+    "belief_horizon_no_track_prediction",
+    "belief_horizon_no_refinement",
+    "belief_orienteering",
+    "belief_orienteering_depth1",
+    "belief_orienteering_no_opportunity_cost",
+    "belief_orienteering_density_disabled",
+    "oracle_current_physics"
+  ],
+  "profile": "nominal",
+  "max_path_m": null,
+  "tmax_s": null,
+  "save_runs": false,
+  "checkpoint": true,
+  "resume": false
+}

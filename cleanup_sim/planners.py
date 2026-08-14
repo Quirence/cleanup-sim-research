@@ -72,6 +72,51 @@ def nearest_neighbor_route(start: np.ndarray, targets: list[np.ndarray], limit: 
     return route
 
 
+def mst_route(start: np.ndarray, targets: list[np.ndarray], limit: int | None = None) -> list[np.ndarray]:
+    if not targets:
+        return []
+    nodes = [np.array(start, dtype=float)] + [np.array(t, dtype=float) for t in targets]
+    n = len(nodes)
+    in_tree = [False] * n
+    in_tree[0] = True
+    min_edge = [float("inf")] * n
+    parent = [0] * n
+    for j in range(1, n):
+        min_edge[j] = float(np.linalg.norm(nodes[j] - nodes[0]))
+    adjacency: dict[int, list[int]] = {i: [] for i in range(n)}
+    for _ in range(n - 1):
+        u = -1
+        best = float("inf")
+        for j in range(n):
+            if not in_tree[j] and min_edge[j] < best:
+                best = min_edge[j]
+                u = j
+        in_tree[u] = True
+        adjacency[parent[u]].append(u)
+        adjacency[u].append(parent[u])
+        for j in range(n):
+            if not in_tree[j]:
+                d = float(np.linalg.norm(nodes[j] - nodes[u]))
+                if d < min_edge[j]:
+                    min_edge[j] = d
+                    parent[j] = u
+    order: list[int] = []
+    visited = [False] * n
+    stack = [0]
+    while stack:
+        node = stack.pop()
+        if visited[node]:
+            continue
+        visited[node] = True
+        if node != 0:
+            order.append(node)
+        children = [j for j in adjacency[node] if not visited[j]]
+        children.sort(key=lambda j: float(np.linalg.norm(nodes[j] - nodes[node])), reverse=True)
+        stack.extend(children)
+    route = [nodes[i] for i in order]
+    return route[:limit] if limit is not None else route
+
+
 def next_lawnmower(state: PlannerState) -> np.ndarray:
     if state.coverage_index >= len(state.coverage_route):
         state.coverage_index = 0
@@ -200,12 +245,28 @@ def choose_next_goal(
             if state.current_route:
                 return state.current_route[0], "route"
         return next_lawnmower(state), "coverage"
+    if planner.mode == "graph_mst":
+        confirmed_targets = target_queue.confirmed_targets()
+        if confirmed_targets:
+            state.current_route = mst_route(current, confirmed_targets, planner.detected_batch_size)
+            if state.current_route:
+                return state.current_route[0], "route"
+        return next_lawnmower(state), "coverage"
     if planner.mode == "hybrid":
         confirmed_targets = target_queue.confirmed_targets()
         mean_entropy = float(np.mean(entropy(prob_map.belief)))
         decision = choose_hybrid_mode(mean_entropy, len(confirmed_targets), planner)
         if decision == HybridDecision.ROUTE and confirmed_targets:
             state.current_route = nearest_neighbor_route(current, confirmed_targets, planner.hybrid_target_batch_size)
+            if state.current_route:
+                return state.current_route[0], decision.value
+        return next_active(current, heading, prob_map, world, planner, fusion), decision.value
+    if planner.mode == "hybrid_mst":
+        confirmed_targets = target_queue.confirmed_targets()
+        mean_entropy = float(np.mean(entropy(prob_map.belief)))
+        decision = choose_hybrid_mode(mean_entropy, len(confirmed_targets), planner)
+        if decision == HybridDecision.ROUTE and confirmed_targets:
+            state.current_route = mst_route(current, confirmed_targets, planner.hybrid_target_batch_size)
             if state.current_route:
                 return state.current_route[0], decision.value
         return next_active(current, heading, prob_map, world, planner, fusion), decision.value
@@ -233,3 +294,7 @@ def pop_arrived_route_goal(
         if target_queue is not None and remove_radius_m is not None:
             target_queue.remove_near(state.current_route[0], remove_radius_m)
         state.current_route.pop(0)
+
+
+def should_invalidate_graph_route(mode: str, goal_label: str, confirmations: list[TargetTrack]) -> bool:
+    return mode in {"graph_mst", "hybrid_mst"} and goal_label == "route" and bool(confirmations)

@@ -135,6 +135,90 @@ def _append_capture_event(
     events.append(row)
 
 
+def _build_summary(
+    config: RunConfig,
+    grid,
+    field: DebrisField,
+    density_map: DensityMap,
+    series: list[dict],
+    detection_records: list[dict],
+    stop_reason: str,
+    total_path_m: float,
+    t_s: float,
+    goal_count: int,
+    evaluated_goal_count: int,
+    empty_goal_arrivals: int,
+    wasted_path_to_empty_goals: float,
+    wasted_time_to_empty_goals: float,
+    goal_successes: int,
+    route_false_visits: int,
+    capture_contacts: int,
+    terminal_capture_attempts: int,
+    successful_captures: int,
+    missed_capture_count: int,
+    partial_contact_events: int,
+    throughput_limit_events: int,
+    bin_full_events: int,
+    pushed_away_events: int,
+    info_gain_total: float,
+    unload_events: int,
+) -> dict:
+    """Compute the final summary dict from the accumulators run_simulation's main loop
+    produced. Pure end-of-run aggregation - reads final state, no loop-order side effects,
+    so it's independently reviewable/testable apart from the per-tick simulation logic."""
+    residual_counts = true_count_map(field, grid.x_edges, grid.y_edges, include_collected=False)
+    quality = map_quality(density_map, residual_counts)
+    collected_count = int(field.collected.sum())
+    collected_ratio = collected_count / max(1, config.world.n_debris)
+    collected_mass_kg = float(field.masses_kg[field.collected].sum())
+    path_values = [float(s["path_m"]) for s in series]
+    ratios = [float(s["collected_ratio"]) for s in series]
+    detection_summary = sensor_metrics(detection_records, config.world.n_debris)
+    summary = {
+        "scenario": config.scenario,
+        "profile": config.profile,
+        "mode": config.planner.mode,
+        "seed": config.seed,
+        "stop_reason": stop_reason,
+        "collected": collected_count,
+        "collected_ratio": collected_ratio,
+        "collected_mass_kg": collected_mass_kg,
+        "collected_mass_per_meter": collected_mass_kg / max(1e-9, total_path_m),
+        "path_length_m": total_path_m,
+        "sim_time_s": t_s,
+        "goal_count": goal_count,
+        "evaluated_goal_count": evaluated_goal_count,
+        "empty_goal_arrivals": empty_goal_arrivals,
+        "empty_goal_arrivals_per_km": empty_goal_arrivals / max(1e-9, total_path_m / 1000.0),
+        "wasted_path_to_empty_goals": wasted_path_to_empty_goals,
+        "wasted_path_ratio": wasted_path_to_empty_goals / max(1e-9, total_path_m),
+        "wasted_time_to_empty_goals": wasted_time_to_empty_goals,
+        "wasted_time_ratio": wasted_time_to_empty_goals / max(1e-9, t_s),
+        "goal_success_rate": goal_successes / max(1, evaluated_goal_count),
+        "route_false_visits": route_false_visits,
+        "capture_contacts": capture_contacts,
+        "terminal_capture_attempts": terminal_capture_attempts,
+        "successful_captures": successful_captures,
+        "missed_capture_count": missed_capture_count,
+        "missed_captures": missed_capture_count,
+        "partial_contact_events": partial_contact_events,
+        "throughput_limit_events": throughput_limit_events,
+        "bin_full_events": bin_full_events,
+        "collection_precision": successful_captures / max(1, terminal_capture_attempts),
+        "pushed_away_events": pushed_away_events,
+        "pushed_away_debris_count": int(np.count_nonzero(field.pushed_events)),
+        "info_gain_total": info_gain_total,
+        "unload_events": unload_events,
+        "auc_collected_by_path": auc_by_path(path_values, ratios, config.platform.max_path_m),
+        "collected_ratio_at_1km": value_at_path(path_values, ratios, 1000.0),
+        "collected_ratio_at_2km": value_at_path(path_values, ratios, 2000.0),
+        "collected_ratio_at_3km": value_at_path(path_values, ratios, 3000.0),
+    }
+    summary.update(quality)
+    summary.update(detection_summary)
+    return summary
+
+
 def run_simulation(config: RunConfig) -> RunResult:
     rng = np.random.default_rng(config.seed)
     grid = make_grid(config.world, config.grid)
@@ -509,56 +593,34 @@ def run_simulation(config: RunConfig) -> RunResult:
     if total_path_m >= config.platform.max_path_m and stop_reason != "done":
         stop_reason = "path_budget"
 
-    residual_counts = true_count_map(field, grid.x_edges, grid.y_edges, include_collected=False)
-    quality = map_quality(density_map, residual_counts)
-    collected_count = int(field.collected.sum())
-    collected_ratio = collected_count / max(1, config.world.n_debris)
-    collected_mass_kg = float(field.masses_kg[field.collected].sum())
-    path_values = [float(s["path_m"]) for s in series]
-    ratios = [float(s["collected_ratio"]) for s in series]
-    detection_summary = sensor_metrics(detection_records, config.world.n_debris)
-    summary = {
-        "scenario": config.scenario,
-        "profile": config.profile,
-        "mode": config.planner.mode,
-        "seed": config.seed,
-        "stop_reason": stop_reason,
-        "collected": collected_count,
-        "collected_ratio": collected_ratio,
-        "collected_mass_kg": collected_mass_kg,
-        "collected_mass_per_meter": collected_mass_kg / max(1e-9, total_path_m),
-        "path_length_m": total_path_m,
-        "sim_time_s": t_s,
-        "goal_count": goal_count,
-        "evaluated_goal_count": evaluated_goal_count,
-        "empty_goal_arrivals": empty_goal_arrivals,
-        "empty_goal_arrivals_per_km": empty_goal_arrivals / max(1e-9, total_path_m / 1000.0),
-        "wasted_path_to_empty_goals": wasted_path_to_empty_goals,
-        "wasted_path_ratio": wasted_path_to_empty_goals / max(1e-9, total_path_m),
-        "wasted_time_to_empty_goals": wasted_time_to_empty_goals,
-        "wasted_time_ratio": wasted_time_to_empty_goals / max(1e-9, t_s),
-        "goal_success_rate": goal_successes / max(1, evaluated_goal_count),
-        "route_false_visits": route_false_visits,
-        "capture_contacts": capture_contacts,
-        "terminal_capture_attempts": terminal_capture_attempts,
-        "successful_captures": successful_captures,
-        "missed_capture_count": missed_capture_count,
-        "missed_captures": missed_capture_count,
-        "partial_contact_events": partial_contact_events,
-        "throughput_limit_events": throughput_limit_events,
-        "bin_full_events": bin_full_events,
-        "collection_precision": successful_captures / max(1, terminal_capture_attempts),
-        "pushed_away_events": pushed_away_events,
-        "pushed_away_debris_count": int(np.count_nonzero(field.pushed_events)),
-        "info_gain_total": info_gain_total,
-        "unload_events": unload_events,
-        "auc_collected_by_path": auc_by_path(path_values, ratios, config.platform.max_path_m),
-        "collected_ratio_at_1km": value_at_path(path_values, ratios, 1000.0),
-        "collected_ratio_at_2km": value_at_path(path_values, ratios, 2000.0),
-        "collected_ratio_at_3km": value_at_path(path_values, ratios, 3000.0),
-    }
-    summary.update(quality)
-    summary.update(detection_summary)
+    summary = _build_summary(
+        config,
+        grid,
+        field,
+        density_map,
+        series,
+        detection_records,
+        stop_reason,
+        total_path_m,
+        t_s,
+        goal_count,
+        evaluated_goal_count,
+        empty_goal_arrivals,
+        wasted_path_to_empty_goals,
+        wasted_time_to_empty_goals,
+        goal_successes,
+        route_false_visits,
+        capture_contacts,
+        terminal_capture_attempts,
+        successful_captures,
+        missed_capture_count,
+        partial_contact_events,
+        throughput_limit_events,
+        bin_full_events,
+        pushed_away_events,
+        info_gain_total,
+        unload_events,
+    )
     return RunResult(
         config=config,
         field=field,

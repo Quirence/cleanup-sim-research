@@ -14,7 +14,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--scenario", choices=["clustered_base", "clustered_noisy", "uniform_base"], default="clustered_base")
     p.add_argument(
         "--mode",
-        choices=["lawnmower", "lawnmower_sparse", "lawnmower_dense", "greedy", "active", "detected_tsp", "hybrid"],
+        choices=[
+            "lawnmower",
+            "lawnmower_sparse",
+            "lawnmower_dense",
+            "greedy",
+            "active",
+            "detected_tsp",
+            "graph_mst",
+            "hybrid",
+            "hybrid_mst",
+        ],
         default="active",
     )
     p.add_argument("--seed", type=int, default=11)

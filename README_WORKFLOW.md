@@ -1,13 +1,12 @@
 # Рабочая структура проекта
 
-Дата обновления: 2026-07-31
+Дата обновления: 2026-08-13
 
 ## Главный рабочий путь
 
 1. `docs/article/stage1/`
-   - научная постановка;
-   - матрица литературы;
-   - готовые формулировки для статьи.
+   - научная постановка, матрица литературы, готовые формулировки для статьи;
+   - написаны под архитектуру `cleanup_sim` (occupancy grid, hybrid-переключатель) и пока не пересобраны под `cleanup_sim_v2` - см. `docs/project/repository_review_2026-08-12.md`.
 
 2. `docs/article/drafts/`
    - Markdown-черновики статьи.
@@ -17,18 +16,19 @@
 
 4. `docs/literature/`
    - план литературы;
-   - глубокие резюме загруженных статей.
+   - глубокие резюме загруженных статей, включая `algorithm_literature_directions_2026-08-02.md` (выбор направлений алгоритмов для `cleanup_sim_v2`).
 
 5. `Материалы/`
    - исходные PDF-статьи.
 
-6. `cleanup_sim/`
-   - актуальная исследовательская Python-реализация симулятора.
+6. `cleanup_sim_v2/`
+   - актуальная исследовательская Python-реализация симулятора (density/count-map, лагранжев дрейф, физический сбор, `belief_horizon`/`belief_orienteering`).
+   - `cleanup_sim/` - legacy-версия (occupancy grid, `hybrid`/`graph_mst`/`hybrid_mst`), не для финальных результатов статьи.
 
 7. `tests/`
-   - тесты для `cleanup_sim`.
+   - тесты для `cleanup_sim_v2` и `cleanup_sim`.
 
-8. `out/cleanup_sim/`
+8. `out/cleanup_sim_v2/`, `out/cleanup_sim/`
    - только актуальные или диагностически важные результаты симулятора.
 
 ## Текущая документация состояния
@@ -37,38 +37,32 @@
 
 `docs/project/current_state.md`
 
-План ремонта экспериментальной базы:
+Статус симулятора v2.1 и что закрыто перед разработкой алгоритма:
 
-`docs/article/stage2/stage2_repair_and_final_experiment_plan.md`
+`docs/project/simulator_v2_1_closure_report.md`
 
-Актуальный диагностический pre-final smoke после закрытия P0/P1:
+Выбор направлений алгоритма и порядок реализации:
 
-`docs/article/results/p1_prefinal_confirmatory_smoke_5seed.md`
+`docs/project/algorithm_literature_directions_2026-08-02.md`, `docs/project/algorithm_implementation_roadmap_2026-08-02.md`
 
-Разбор внешнего аудита:
+Ревью репозитория и план исправлений:
 
-`docs/article/drafts/2026-07-31_audit_triage_after_current_fixes.md`
+`docs/project/repository_review_2026-08-12.md`, `docs/project/repository_review_fix_plan_2026-08-13.md`
 
 ## Текущий научный вектор
 
 Рабочая тема:
 
-> гибридное вероятностное планирование поиска и сбора плавающего мусора автономным надводным роботом при шумных и неполных наблюдениях.
+> вероятностное планирование поиска и сбора плавающего мусора автономным надводным роботом при шумных и неполных наблюдениях, физически ограниченном сборе и дрейфе мусора.
 
-Главный файл для продолжения:
-
-`docs/article/stage1/stage1_scientific_positioning.md`
-
-Следующий научно-технический этап:
-
-> согласовать интерпретацию pre-final smoke: фиксировать `hybrid_final_v1` как метод для анализа условий применимости, перерабатывать hybrid-правило или смещать вклад статьи на протокол сравнения и trade-off analysis.
+Текущий научный статус: `cleanup_sim_v2` готов для разработки алгоритма (`READY FOR ALGORITHM DESIGN`), но не для финального confirmatory-прогона - нужны sensitivity-серия, заморозка параметров и paired-seed сравнение против `greedy`/`confirmed_route`/`oracle_current_physics` на достаточном числе seed (см. `docs/project/parameter_evidence_matrix.md`).
 
 Быстрая проверка симулятора:
 
 ```powershell
 python -m pip install -e ".[dev]"
 python -m pytest
-python -m cleanup_sim.run_confirmatory --seeds 1 --scenarios clustered_base --out-dir out/cleanup_sim/dev_smoke --max-path-m 1200 --tmax-s 2400
+python -m cleanup_sim_v2.run_experiments --seeds 3 --modes greedy belief_horizon oracle_current_physics --out-dir out/cleanup_sim_v2/dev_smoke
 ```
 
 Подробные инструкции по воспроизводимости:

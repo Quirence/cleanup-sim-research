@@ -13,6 +13,7 @@ from .planners import (
     choose_next_goal,
     lawnmower_route,
     pop_arrived_route_goal,
+    should_invalidate_graph_route,
     suppress_greedy_region,
     update_detected_targets,
 )
@@ -133,6 +134,10 @@ def run_simulation(config: RunConfig) -> SimulationResult:
                     "confidence": det.confidence,
                     "source_id": det.source_index,
                 })
+
+            if should_invalidate_graph_route(config.planner.mode, current_planner_mode, confirmations):
+                state.current_route = []
+                current_goal = None
 
         collected_events, bin_load = _collect_nearby(field, pos, config.robot.collect_radius_m, bin_load)
         collected_this_tick = len(collected_events)
