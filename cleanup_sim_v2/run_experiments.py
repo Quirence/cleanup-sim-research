@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from cleanup_sim.statistics import paired_comparison_table
+
 from .config import scenario_config
 from .io import config_hash, git_commit, git_dirty, save_run
 from .simulation import run_simulation
@@ -40,6 +42,11 @@ ALL_MODES = [
     "belief_horizon_no_efficiency",
     "belief_horizon_no_track_prediction",
     "belief_horizon_no_refinement",
+    "adaptive_mission",
+    "adaptive_mission_no_route",
+    "adaptive_mission_no_orienteering",
+    "adaptive_mission_no_local_exploit",
+    "adaptive_mission_no_hysteresis",
     "confirmed_route",
     "oracle_perfect_static",
     "oracle_current_physics",
@@ -52,6 +59,7 @@ BASELINE_MODES = ["lawnmower_survey", "lawnmower_collect", "greedy"]
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run cleanup_sim_v2 experiment series.")
     parser.add_argument("--seeds", type=int, default=3)
+    parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--scenarios", nargs="+", choices=ALL_SCENARIOS, default=DEFAULT_SCENARIOS)
     parser.add_argument("--modes", nargs="+", choices=ALL_MODES, default=DEFAULT_MODES)
     parser.add_argument("--profile", choices=["low", "nominal", "high"], default="nominal")
@@ -82,7 +90,7 @@ def main() -> None:
     dirty = git_dirty()
     for scenario in args.scenarios:
         for mode in modes:
-            for seed in range(args.seeds):
+            for seed in range(args.seed_start, args.seed_start + args.seeds):
                 run_key = (scenario, args.profile, mode, seed)
                 if run_key in completed_keys:
                     print(f"skip scenario={scenario} mode={mode} seed={seed} reason=resume")
@@ -147,6 +155,25 @@ def main() -> None:
     numeric_cols = df.select_dtypes(include="number").columns
     aggregate = df.groupby(["scenario", "profile", "mode"])[numeric_cols].agg(["mean", "std"])
     aggregate.to_csv(aggregate_path)
+    comparisons_path = args.out_dir / "paired_comparisons.csv"
+    if "adaptive_mission" in set(df["mode"]):
+        comparison_metrics = tuple(
+            metric
+            for metric in (
+                "auc_collected_by_path",
+                "collected_ratio",
+                "oracle_gap_auc_collected_by_path",
+                "empty_goal_arrivals_per_km",
+                "wasted_path_ratio",
+                "goal_success_rate",
+            )
+            if metric in df.columns
+        )
+        paired_comparison_table(
+            df,
+            reference_mode="adaptive_mission",
+            metrics=comparison_metrics,
+        ).to_csv(comparisons_path, index=False)
     manifest_path.write_text(
         json.dumps(
             {
@@ -154,6 +181,7 @@ def main() -> None:
                 "git_commit": commit,
                 "git_dirty": dirty,
                 "seeds": args.seeds,
+                "seed_start": args.seed_start,
                 "scenarios": args.scenarios,
                 "modes": modes,
                 "profile": args.profile,
@@ -170,6 +198,8 @@ def main() -> None:
     )
     print(f"summary: {summary_path}")
     print(f"aggregate: {aggregate_path}")
+    if comparisons_path.exists():
+        print(f"paired comparisons: {comparisons_path}")
     print(f"manifest: {manifest_path}")
 
 

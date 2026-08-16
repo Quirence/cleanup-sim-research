@@ -33,6 +33,11 @@ PlannerMode = Literal[
     "belief_horizon_no_efficiency",
     "belief_horizon_no_track_prediction",
     "belief_horizon_no_refinement",
+    "adaptive_mission",
+    "adaptive_mission_no_route",
+    "adaptive_mission_no_orienteering",
+    "adaptive_mission_no_local_exploit",
+    "adaptive_mission_no_hysteresis",
     "confirmed_route",
     "oracle_perfect_static",
     "oracle_current_physics",
@@ -222,6 +227,31 @@ class PlannerConfig:
     belief_provisional_max_uncertainty_m: float = 3.5
     belief_provisional_confidence_scale: float = 0.65
     belief_provisional_require_camera: bool = True
+    adaptive_route_enabled: bool = True
+    adaptive_orienteering_enabled: bool = True
+    adaptive_local_exploit_enabled: bool = True
+    adaptive_hysteresis_enabled: bool = True
+    adaptive_switch_margin: float = 0.12
+    adaptive_route_min_confirmed: int = 6
+    adaptive_route_fresh_after_s: float = 180.0
+    adaptive_local_min_expected_count: float = 25.0
+    adaptive_local_density_signal_threshold: float = 0.35
+    adaptive_efficiency_scale_m: float = 30.0
+    adaptive_expected_collection_weight: float = 2.0
+    adaptive_rollout_collection_weight: float = 0.65
+    adaptive_information_gain_weight: float = 0.35
+    adaptive_target_confirmation_weight: float = 0.35
+    adaptive_fresh_target_weight: float = 0.08
+    adaptive_route_target_count_weight: float = 0.12
+    adaptive_empty_goal_risk_weight: float = 0.25
+    adaptive_stale_target_risk_weight: float = 0.3
+    adaptive_drift_risk_weight: float = 0.6
+    adaptive_route_drift_bonus_weight: float = 0.6
+    adaptive_drift_reference_mps: float = 0.035
+    adaptive_orienteering_max_drift_ratio: float = 2.0
+    adaptive_local_exploit_max_drift_ratio: float = 2.0
+    adaptive_route_drift_override_min_ratio: float = 1.0
+    adaptive_route_drift_override_min_drift_ratio: float = 0.9
     greedy_tabu_radius_m: float = 3.0
     target_confirm_confidence: float = 0.62
     target_confirm_hits: int = 2
@@ -364,7 +394,7 @@ def scenario_config(
     platform = _profile_platform(profile, PlatformConfig())
     sensors = _profile_sensors(profile, SensorSuiteConfig())
     planner = PlannerConfig(mode=mode)
-    if mode.startswith("belief_"):
+    if mode.startswith("belief_") or mode.startswith("adaptive_mission"):
         planner = replace(planner, coverage_spacing_m=belief_scout_spacing_m(sensors))
     if mode in {"belief_horizon_provisional", "belief_orienteering_provisional"}:
         planner = replace(planner, belief_provisional_targets_enabled=True)
@@ -380,6 +410,14 @@ def scenario_config(
         planner = replace(planner, belief_orienteering_opportunity_cost_weight=0.0)
     elif mode == "belief_orienteering_density_disabled":
         planner = replace(planner, belief_orienteering_density_enabled=False)
+    elif mode == "adaptive_mission_no_route":
+        planner = replace(planner, adaptive_route_enabled=False)
+    elif mode == "adaptive_mission_no_orienteering":
+        planner = replace(planner, adaptive_orienteering_enabled=False)
+    elif mode == "adaptive_mission_no_local_exploit":
+        planner = replace(planner, adaptive_local_exploit_enabled=False)
+    elif mode == "adaptive_mission_no_hysteresis":
+        planner = replace(planner, adaptive_hysteresis_enabled=False)
     if mode in {"coverage", "lawnmower_survey"}:
         planner = replace(planner, coverage_spacing_m=survey_lawnmower_spacing_m(sensors))
     elif mode == "lawnmower_collect":

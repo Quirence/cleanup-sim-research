@@ -51,6 +51,8 @@ def test_run_experiments_main_writes_summary_aggregate_and_manifest(tmp_path: Pa
             "run_experiments",
             "--seeds",
             "2",
+            "--seed-start",
+            "5",
             "--scenarios",
             "static_calm",
             "--modes",
@@ -75,13 +77,44 @@ def test_run_experiments_main_writes_summary_aggregate_and_manifest(tmp_path: Pa
     # 2 modes x 1 scenario x 2 seeds = 4 rows.
     assert len(summary_df) == 4
     assert set(summary_df["mode"]) == {"greedy", "lawnmower_survey"}
-    assert set(summary_df["seed"]) == {0, 1}
+    assert set(summary_df["seed"]) == {5, 6}
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["runner"] == "cleanup_sim_v2.run_experiments"
     assert manifest["seeds"] == 2
+    assert manifest["seed_start"] == 5
     assert manifest["scenarios"] == ["static_calm"]
     assert manifest["git_commit"] != "unknown"
+
+
+def test_run_experiments_writes_paired_comparisons_for_adaptive_mission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_experiments",
+            "--seeds",
+            "1",
+            "--scenarios",
+            "static_calm",
+            "--modes",
+            "greedy",
+            "adaptive_mission",
+            "--out-dir",
+            str(tmp_path),
+            *_small_budget_args(),
+        ],
+    )
+
+    run_experiments.main()
+
+    comparisons_path = tmp_path / "paired_comparisons.csv"
+    assert comparisons_path.exists()
+    comparisons = pd.read_csv(comparisons_path)
+    assert set(comparisons["mode_a"]) == {"adaptive_mission"}
+    assert "auc_collected_by_path" in set(comparisons["metric"])
 
 
 def test_run_experiments_checkpoint_writes_partial_files_during_the_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

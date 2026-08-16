@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from .config import PlannerConfig, PlatformConfig, WorldConfig
+from .config import HydroConfig, PlannerConfig, PlatformConfig, WorldConfig
+from .hydrodynamics import ambient_velocity
 from .mapping import DensityMap, entropy
 from .targets import TargetQueue
 from .world import DebrisField
@@ -26,6 +28,14 @@ BELIEF_ORIENTEERING_MODES = {
     "belief_orienteering_density_disabled",
 }
 
+ADAPTIVE_MISSION_MODES = {
+    "adaptive_mission",
+    "adaptive_mission_no_route",
+    "adaptive_mission_no_orienteering",
+    "adaptive_mission_no_local_exploit",
+    "adaptive_mission_no_hysteresis",
+}
+
 
 @dataclass
 class PlannerState:
@@ -39,6 +49,8 @@ class PlannerState:
     current_route_reason: str = "confirmed_target_route"
     current_route_details: dict[str, float | str] = field(default_factory=dict)
     oracle_route: list[np.ndarray] | None = None
+    adaptive_last_policy: str | None = None
+    adaptive_last_utility: float = -np.inf
 
 
 @dataclass(frozen=True)
@@ -1482,6 +1494,407 @@ def _build_oracle_route(
     return state.oracle_route
 
 
+def _route_expected_count(
+    density_map: DensityMap,
+    current: np.ndarray,
+    route: list[np.ndarray],
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+) -> float:
+    work_map = DensityMap(grid=density_map.grid, expected_count=density_map.expected_count.copy())
+    cursor = current.copy()
+    total = 0.0
+    for point in route:
+        total += _swept_expected_count(work_map, cursor, point, platform)
+        work_map = _discount_swept_density(work_map, cursor, point, platform, planner)
+        cursor = point.copy()
+    return float(total)
+
+
+def _next_confirmed_route_decision(
+    current: np.ndarray,
+    state: PlannerState,
+    density_map: DensityMap,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+    targets: TargetQueue,
+    t_s: float,
+) -> GoalDecision:
+    confirmed = targets.confirmed_targets(t_s)
+    if confirmed:
+        state.current_route = nearest_neighbor_route(current, confirmed, planner.route_batch_size)
+        state.current_route_mode = "route"
+        state.current_route_reason = "confirmed_target_route"
+        route_length = _route_length(current, state.current_route)
+        expected_collection = _route_expected_count(density_map, current, state.current_route, platform, planner)
+        state.current_route_details = {
+            "candidate_type": "confirmed_target_route",
+            "route_points": float(len(state.current_route)),
+            "route_length_m": float(route_length),
+            "score_expected_collection": float(expected_collection),
+            "score_rollout_collection": 0.0,
+            "score_information_gain": 0.0,
+            "score_target_confirmation": float(len(confirmed)),
+            "score_empty_risk": float(np.exp(-max(0.0, expected_collection))),
+            "score_stale_risk": 0.0,
+            "score_path_cost": float(route_length),
+        }
+        if state.current_route:
+            return GoalDecision(
+                state.current_route[0].copy(),
+                "route",
+                "confirmed_target_route",
+                1.0,
+                dict(state.current_route_details),
+            )
+
+    point = next_coverage(state)
+    return GoalDecision(
+        point,
+        "coverage",
+        "no_confirmed_targets",
+        0.0,
+        {"candidate_type": "coverage_route", "score_path_cost": float(np.linalg.norm(point - current))},
+    )
+
+
+def _next_local_exploit_decision(
+    t_s: float,
+    current: np.ndarray,
+    state: PlannerState,
+    density_map: DensityMap,
+    world: WorldConfig,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+    targets: TargetQueue,
+) -> GoalDecision | None:
+    tracks = _target_tracks(targets, t_s)
+    ready_track, ready_score = _best_ready_target_track(current, tracks, t_s, platform, planner)
+    focus: np.ndarray | None = None
+    focus_kind = "density_local_sweep"
+    confidence = 0.0
+    age_s = 0.0
+    uncertainty_m = 0.0
+    if ready_track is not None:
+        focus = ready_track.position.copy()
+        focus_kind = "confirmed_target_local_sweep"
+        confidence = float(ready_track.confidence)
+        age_s = max(0.0, t_s - ready_track.last_seen_s)
+        uncertainty_m = float(getattr(ready_track, "localization_sigma_m", 0.0))
+
+    if focus is None:
+        return None
+    if _relative_signal(density_map.expected_count) < planner.adaptive_local_density_signal_threshold:
+        return None
+
+    local_density = _local_expected_count(
+        density_map,
+        focus,
+        max(planner.candidate_spacing_m, 2.5 * platform.collection_width_m),
+    )
+    if local_density < planner.adaptive_local_min_expected_count:
+        return None
+
+    route = _local_sweep_route(current, focus, world, platform, planner)
+    route = [point for point in route if np.linalg.norm(point - current) > platform.arrival_tolerance_m]
+    if not route:
+        return None
+
+    route_length = _route_length(current, route)
+    expected_collection = _route_expected_count(density_map, current, route, platform, planner)
+    information_gain = _local_entropy_gain(density_map, focus, planner.candidate_spacing_m)
+    stale_risk = min(1.0, age_s / max(1.0, planner.target_stale_after_s))
+    details: dict[str, float | str] = {
+        "candidate_type": focus_kind,
+        "planning_mode": "adaptive_local_exploit",
+        "score_total": float(ready_score if ready_track is not None else expected_collection),
+        "score_benefit": float(expected_collection + confidence),
+        "score_risk_penalty": float(stale_risk),
+        "score_effort_m": float(route_length),
+        "score_expected_collection": float(expected_collection),
+        "score_rollout_collection": 0.0,
+        "score_information_gain": float(information_gain),
+        "score_target_confirmation": float(confidence),
+        "score_refine_bonus": 0.0,
+        "score_empty_risk": float(np.exp(-max(0.0, expected_collection))),
+        "score_stale_risk": float(stale_risk),
+        "score_path_cost": float(route_length),
+        "target_uncertainty_m": float(uncertainty_m),
+        "local_density_expected_count": float(local_density),
+        "local_sweep_lanes": float(len(route)),
+        "local_sweep_route_length_m": float(route_length),
+    }
+    state.current_route = route
+    state.current_route_mode = "belief_horizon"
+    state.current_route_reason = "adaptive_local_exploit"
+    state.current_route_details = details
+    return GoalDecision(route[0].copy(), "belief_horizon", "adaptive_local_exploit", float(expected_collection), details)
+
+
+def _preview_adaptive_policy(
+    policy: str,
+    t_s: float,
+    current: np.ndarray,
+    state: PlannerState,
+    density_map: DensityMap,
+    world: WorldConfig,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+    targets: TargetQueue,
+) -> GoalDecision | None:
+    preview_state = deepcopy(state)
+    preview_targets = deepcopy(targets)
+    if policy == "belief_horizon":
+        return next_belief_horizon(t_s, current, preview_state, density_map, world, platform, planner, preview_targets)
+    if policy == "belief_orienteering":
+        decision = next_belief_orienteering(t_s, current, preview_state, density_map, world, platform, planner, preview_targets)
+        if decision.details.get("planning_mode") != "receding_orienteering":
+            return None
+        return decision
+    if policy == "confirmed_route":
+        return _next_confirmed_route_decision(current, preview_state, density_map, platform, planner, preview_targets, t_s)
+    if policy == "local_exploit":
+        return _next_local_exploit_decision(t_s, current, preview_state, density_map, world, platform, planner, preview_targets)
+    return None
+
+
+def _execute_adaptive_policy(
+    policy: str,
+    t_s: float,
+    current: np.ndarray,
+    state: PlannerState,
+    density_map: DensityMap,
+    world: WorldConfig,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+    targets: TargetQueue,
+) -> GoalDecision:
+    if policy == "belief_orienteering":
+        return next_belief_orienteering(t_s, current, state, density_map, world, platform, planner, targets)
+    if policy == "confirmed_route":
+        return _next_confirmed_route_decision(current, state, density_map, platform, planner, targets, t_s)
+    if policy == "local_exploit":
+        decision = _next_local_exploit_decision(t_s, current, state, density_map, world, platform, planner, targets)
+        if decision is not None:
+            return decision
+    return next_belief_horizon(t_s, current, state, density_map, world, platform, planner, targets)
+
+
+def _adaptive_context(
+    targets: TargetQueue,
+    t_s: float,
+    planner: PlannerConfig,
+    hydro: HydroConfig | None,
+) -> tuple[int, int, float]:
+    tracks = _target_tracks(targets, t_s)
+    fresh = sum(1 for track in tracks if t_s - track.last_seen_s <= planner.adaptive_route_fresh_after_s)
+    drift_speed = 0.0 if hydro is None else float(np.linalg.norm(ambient_velocity(hydro)))
+    return len(tracks), int(fresh), drift_speed
+
+
+def _adaptive_utility(
+    policy: str,
+    decision: GoalDecision,
+    current: np.ndarray,
+    density_map: DensityMap,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+    confirmed_count: int,
+    fresh_confirmed_count: int,
+    drift_speed_mps: float,
+) -> tuple[float, dict[str, float | str]]:
+    details = decision.details
+    first_leg_m = float(np.linalg.norm(decision.point - current))
+    route_effort = float(
+        details.get(
+            "route_length_m",
+            details.get(
+                "orienteering_route_length_m",
+                details.get("local_sweep_route_length_m", details.get("score_path_cost", first_leg_m)),
+            ),
+        )
+    )
+    if policy in {"confirmed_route", "local_exploit"}:
+        effort_m = max(route_effort, first_leg_m, platform.collection_approach_radius_m)
+    else:
+        # Receding-horizon policies use route/rollout only to score the next action;
+        # they are free to replan after the first leg, so the selector charges the
+        # committed first-leg cost rather than the whole hypothetical horizon.
+        effort_m = max(first_leg_m, platform.collection_approach_radius_m)
+    swept_collection = _swept_expected_count(density_map, current, decision.point, platform)
+    expected_collection = max(float(details.get("score_expected_collection", 0.0)), swept_collection)
+    rollout_collection = float(details.get("score_rollout_collection", 0.0))
+    information_gain = max(
+        float(details.get("score_information_gain", 0.0)),
+        _local_entropy_gain(density_map, decision.point, max(platform.collection_approach_radius_m, 0.5 * planner.candidate_spacing_m)),
+    )
+    target_confirmation = float(details.get("score_target_confirmation", 0.0))
+    stale_risk = float(details.get("score_stale_risk", 0.0))
+    empty_risk = float(details.get("score_empty_risk", np.exp(-max(0.0, expected_collection))))
+    drift_ratio = drift_speed_mps / max(1e-9, planner.adaptive_drift_reference_mps)
+
+    benefit = (
+        planner.adaptive_expected_collection_weight * expected_collection
+        + planner.adaptive_rollout_collection_weight * rollout_collection
+        + planner.adaptive_information_gain_weight * information_gain
+        + planner.adaptive_target_confirmation_weight * target_confirmation
+    )
+    if policy == "confirmed_route":
+        usable_targets = min(confirmed_count, planner.route_batch_size)
+        benefit += planner.adaptive_route_target_count_weight * usable_targets
+        benefit += planner.adaptive_fresh_target_weight * fresh_confirmed_count
+        benefit += (
+            planner.adaptive_route_drift_bonus_weight
+            * max(0.0, drift_ratio - 0.75)
+            * min(fresh_confirmed_count, max(1, planner.route_batch_size))
+            / max(1, planner.route_batch_size)
+        )
+    elif policy == "local_exploit":
+        benefit += planner.adaptive_fresh_target_weight * min(fresh_confirmed_count, 1)
+
+    risk = (
+        planner.adaptive_empty_goal_risk_weight * empty_risk
+        + planner.adaptive_stale_target_risk_weight * stale_risk
+    )
+    if policy in {"belief_horizon", "belief_orienteering"}:
+        risk += planner.adaptive_drift_risk_weight * max(0.0, drift_ratio - 1.0) * stale_risk
+
+    utility = planner.adaptive_efficiency_scale_m * benefit / effort_m - risk
+    diagnostics: dict[str, float | str] = {
+        "adaptive_utility": float(utility),
+        "adaptive_benefit": float(benefit),
+        "adaptive_risk": float(risk),
+        "adaptive_effort_m": float(effort_m),
+        "adaptive_expected_collection": float(expected_collection),
+        "adaptive_rollout_collection": float(rollout_collection),
+        "adaptive_information_gain": float(information_gain),
+        "adaptive_target_confirmation": float(target_confirmation),
+        "adaptive_empty_goal_risk": float(empty_risk),
+        "adaptive_stale_target_risk": float(stale_risk),
+    }
+    return float(utility), diagnostics
+
+
+def next_adaptive_mission(
+    t_s: float,
+    current: np.ndarray,
+    state: PlannerState,
+    density_map: DensityMap,
+    world: WorldConfig,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+    targets: TargetQueue,
+    hydro: HydroConfig | None = None,
+) -> GoalDecision:
+    confirmed_count, fresh_confirmed_count, drift_speed_mps = _adaptive_context(targets, t_s, planner, hydro)
+    drift_ratio = drift_speed_mps / max(1e-9, planner.adaptive_drift_reference_mps)
+    policies = ["belief_horizon"]
+    if planner.adaptive_orienteering_enabled and drift_ratio <= planner.adaptive_orienteering_max_drift_ratio:
+        policies.append("belief_orienteering")
+    if planner.adaptive_route_enabled and confirmed_count >= planner.adaptive_route_min_confirmed:
+        policies.append("confirmed_route")
+    if planner.adaptive_local_exploit_enabled and drift_ratio <= planner.adaptive_local_exploit_max_drift_ratio:
+        policies.append("local_exploit")
+
+    candidates: list[tuple[str, GoalDecision, float, dict[str, float | str]]] = []
+    for policy in policies:
+        decision = _preview_adaptive_policy(policy, t_s, current, state, density_map, world, platform, planner, targets)
+        if decision is None:
+            continue
+        utility, diagnostics = _adaptive_utility(
+            policy,
+            decision,
+            current,
+            density_map,
+            platform,
+            planner,
+            confirmed_count,
+            fresh_confirmed_count,
+            drift_speed_mps,
+        )
+        candidates.append((policy, decision, utility, diagnostics))
+
+    if not candidates:
+        fallback = next_belief_horizon(t_s, current, state, density_map, world, platform, planner, targets)
+        candidates.append(("belief_horizon", fallback, fallback.expected_value, {}))
+
+    best = max(candidates, key=lambda item: item[2])
+    selected = best
+    route_override_used = False
+    if planner.adaptive_hysteresis_enabled and state.adaptive_last_policy is not None:
+        for candidate in candidates:
+            if candidate[0] == state.adaptive_last_policy and candidate[2] >= best[2] - planner.adaptive_switch_margin:
+                selected = candidate
+                break
+    if (
+        planner.adaptive_route_enabled
+        and drift_ratio >= planner.adaptive_route_drift_override_min_drift_ratio
+        and fresh_confirmed_count >= planner.adaptive_route_min_confirmed
+    ):
+        route_candidate = next((candidate for candidate in candidates if candidate[0] == "confirmed_route"), None)
+        if route_candidate is not None:
+            best_score = float(best[2])
+            route_score = float(route_candidate[2])
+            if best_score <= 0.0 or route_score >= best_score * planner.adaptive_route_drift_override_min_ratio:
+                selected = route_candidate
+                route_override_used = selected[0] != best[0]
+
+    selected_policy = selected[0]
+    preview_scores = {policy: float(score) for policy, _, score, _ in candidates}
+    actual = _execute_adaptive_policy(
+        selected_policy,
+        t_s,
+        current,
+        state,
+        density_map,
+        world,
+        platform,
+        planner,
+        targets,
+    )
+    selected_utility, selected_diagnostics = _adaptive_utility(
+        selected_policy,
+        actual,
+        current,
+        density_map,
+        platform,
+        planner,
+        confirmed_count,
+        fresh_confirmed_count,
+        drift_speed_mps,
+    )
+    state.adaptive_last_policy = selected_policy
+    state.adaptive_last_utility = selected_utility
+
+    details = dict(actual.details)
+    details.update(selected_diagnostics)
+    details.update(
+        {
+            "adaptive_selected_policy": selected_policy,
+            "adaptive_confirmed_count": float(confirmed_count),
+            "adaptive_fresh_confirmed_count": float(fresh_confirmed_count),
+            "adaptive_density_signal": float(_relative_signal(density_map.expected_count)),
+            "adaptive_drift_speed_mps": float(drift_speed_mps),
+            "adaptive_switch_margin_used": float(planner.adaptive_switch_margin if planner.adaptive_hysteresis_enabled else 0.0),
+            "adaptive_policy_count": float(len(candidates)),
+            "adaptive_route_override_used": float(route_override_used),
+        }
+    )
+    for policy in ("belief_horizon", "belief_orienteering", "confirmed_route", "local_exploit"):
+        details[f"adaptive_score_{policy}"] = float(preview_scores.get(policy, -np.inf))
+    if state.current_route:
+        state.current_route_details = dict(details)
+        state.current_route_reason = f"adaptive_mission:{selected_policy}"
+
+    return GoalDecision(
+        actual.point.copy(),
+        actual.mode,
+        f"adaptive_mission:{selected_policy}",
+        float(selected_utility),
+        details,
+    )
+
+
 def choose_goal(
     t_s: float,
     current: np.ndarray,
@@ -1492,6 +1905,7 @@ def choose_goal(
     planner: PlannerConfig,
     targets: TargetQueue,
     field: DebrisField | None = None,
+    hydro: HydroConfig | None = None,
 ) -> GoalDecision:
     if state.current_route:
         return GoalDecision(
@@ -1523,20 +1937,14 @@ def choose_goal(
         return GoalDecision(point, "greedy", "max_expected_count", float(density_map.expected_count[iy, ix]))
     if planner.mode == "belief_cluster_route":
         return next_belief_cluster_route(t_s, current, state, density_map, world, platform, planner, targets)
+    if planner.mode in ADAPTIVE_MISSION_MODES:
+        return next_adaptive_mission(t_s, current, state, density_map, world, platform, planner, targets, hydro)
     if planner.mode in BELIEF_ORIENTEERING_MODES:
         return next_belief_orienteering(t_s, current, state, density_map, world, platform, planner, targets)
     if planner.mode in BELIEF_HORIZON_MODES:
         return next_belief_horizon(t_s, current, state, density_map, world, platform, planner, targets)
     if planner.mode == "confirmed_route":
-        confirmed = targets.confirmed_targets(t_s)
-        if confirmed:
-            state.current_route = nearest_neighbor_route(current, confirmed, planner.route_batch_size)
-            state.current_route_mode = "route"
-            state.current_route_reason = "confirmed_target_route"
-            state.current_route_details = {}
-            if state.current_route:
-                return GoalDecision(state.current_route[0].copy(), "route", "confirmed_target_route", 1.0)
-        return GoalDecision(next_coverage(state), "coverage", "no_confirmed_targets", 0.0)
+        return _next_confirmed_route_decision(current, state, density_map, platform, planner, targets, t_s)
 
     active_reached = state.active_goal is not None and np.linalg.norm(state.active_goal - current) <= platform.arrival_tolerance_m
     if state.active_goal is None or active_reached or t_s - state.last_replan_t_s >= planner.replan_interval_s:
