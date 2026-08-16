@@ -1036,7 +1036,7 @@ def next_belief_cluster_route(
     )
     if augmented_route is not None:
         state.current_route = augmented_route
-        state.current_route_mode = "belief_horizon"
+        state.current_route_mode = "belief_cluster_route"
         state.current_route_reason = "belief_cluster_route"
         state.current_route_details = augmented_details
         return GoalDecision(
@@ -1090,7 +1090,7 @@ def next_belief_cluster_route(
         return fallback
 
     state.current_route = best_route
-    state.current_route_mode = "belief_horizon"
+    state.current_route_mode = "belief_cluster_route"
     state.current_route_reason = "belief_cluster_route"
     state.current_route_details = best_details
     return GoalDecision(

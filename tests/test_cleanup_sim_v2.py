@@ -752,7 +752,7 @@ def test_belief_horizon_scores_swept_density_without_truth_access() -> None:
 
     assert decision.mode == "belief_horizon"
     assert decision.details["score_expected_collection"] > 0.0
-    assert decision.details["candidate_type"] == "density_peak"
+    assert decision.details["candidate_type"] == "density_transect"
 
 
 def test_belief_horizon_uses_coverage_when_prior_has_no_density_signal() -> None:
@@ -1062,7 +1062,7 @@ def test_belief_cluster_route_builds_multi_point_route_from_density_patch() -> N
         field=None,
     )
 
-    assert decision.mode == "belief_horizon"
+    assert decision.mode == "belief_cluster_route"
     assert decision.reason == "belief_cluster_route"
     assert decision.details["candidate_type"] == "cluster_route_transect"
     assert decision.details["cluster_route_points"] >= 2.0
@@ -1095,6 +1095,9 @@ def test_belief_cluster_route_runs_and_logs_route_details() -> None:
     starts = result.events[result.events["event"] == "goal_started"]
     assert not starts.empty
     assert "cluster_route_points" in starts.columns
+    cluster_starts = starts[starts["reason"] == "belief_cluster_route"]
+    assert not cluster_starts.empty
+    assert set(cluster_starts["mode"]) == {"belief_cluster_route"}
 
 
 def test_belief_orienteering_scores_route_horizon_without_locking_route() -> None:

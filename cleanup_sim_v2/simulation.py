@@ -85,14 +85,14 @@ def _motion_speed(
     }
     if (
         config.planner.belief_transect_collection_speed_enabled
-        and goal_mode in {"belief_horizon", "belief_orienteering"}
+        and goal_mode in {"belief_horizon", "belief_cluster_route", "belief_orienteering"}
         and (
             is_collection_transect
             or expected_collection >= config.planner.belief_collection_speed_expected_count_threshold
         )
     ):
         return config.platform.collection_speed_mps
-    if goal_mode in {"greedy", "active", "belief_horizon", "belief_orienteering", "route", "oracle"}:
+    if goal_mode in {"greedy", "active", "belief_horizon", "belief_cluster_route", "belief_orienteering", "route", "oracle"}:
         distance = float(np.linalg.norm(goal - pos))
         if distance <= config.platform.collection_approach_radius_m:
             return config.platform.collection_speed_mps
@@ -101,7 +101,7 @@ def _motion_speed(
 
 
 def _is_belief_goal_mode(goal_mode: str) -> bool:
-    return goal_mode in {"belief_horizon", "belief_orienteering"}
+    return goal_mode in {"belief_horizon", "belief_cluster_route", "belief_orienteering"}
 
 
 def _grid_value(density_map: DensityMap, point: np.ndarray) -> float:
@@ -478,7 +478,15 @@ def run_simulation(config: RunConfig) -> RunResult:
         if reached_goal_region and current_goal_arrived_time is None:
             current_goal_arrived_time = t_s + dt_s
 
-        dwell_required = current_goal_mode in {"greedy", "active", "belief_horizon", "belief_orienteering", "route", "oracle"}
+        dwell_required = current_goal_mode in {
+            "greedy",
+            "active",
+            "belief_horizon",
+            "belief_cluster_route",
+            "belief_orienteering",
+            "route",
+            "oracle",
+        }
         collected_delta_now = int(field.collected.sum()) - current_goal_start_collected
         dwell_elapsed = 0.0 if current_goal_arrived_time is None else (t_s + dt_s - current_goal_arrived_time)
         should_complete_goal = bool(reached_goal_region)
