@@ -22,6 +22,7 @@ from cleanup_sim_v2.planners import (
     _OrienteeringBeam,
     _belief_candidates,
     _expand_orienteering_beams,
+    _preview_adaptive_policy,
     _orienteering_beam_score,
     _orienteering_candidates,
     _orienteering_single_candidate_score,
@@ -52,6 +53,25 @@ def _field_at(points: list[tuple[float, float]]) -> DebrisField:
         pushed_events=np.zeros(n, dtype=int),
         capture_progress_kg=np.zeros(n, dtype=float),
     )
+
+
+def _confirmed_target_queue(cfg, points: list[tuple[float, float]], t_s: float = 0.0) -> TargetQueue:
+    queue = TargetQueue(cfg.planner)
+    detections = [
+        Detection(
+            "camera",
+            np.array(point, dtype=float),
+            0.9,
+            source_index=None,
+            is_false=False,
+            range_m=20.0,
+            localization_sigma_m=0.6,
+        )
+        for point in points
+    ]
+    queue.add_detections(detections, t_s, cfg.world)
+    queue.add_detections(detections, t_s + 1.0, cfg.world)
+    return queue
 
 
 def test_collection_impossible_outside_front_aperture() -> None:
@@ -305,6 +325,21 @@ def test_v2_parser_accepts_belief_horizon_ablation_modes() -> None:
         assert mode in ALL_MODES
 
 
+def test_v2_parser_accepts_adaptive_mission_modes() -> None:
+    modes = [
+        "adaptive_mission",
+        "adaptive_mission_no_route",
+        "adaptive_mission_no_orienteering",
+        "adaptive_mission_no_local_exploit",
+        "adaptive_mission_no_hysteresis",
+    ]
+    args = build_experiment_parser().parse_args(["--modes", *modes, "--seeds", "1", "--seed-start", "10"])
+    assert args.modes == modes
+    assert args.seed_start == 10
+    for mode in modes:
+        assert mode in ALL_MODES
+
+
 def test_v2_parser_accepts_checkpoint_resume_flags() -> None:
     args = build_experiment_parser().parse_args(["--modes", "belief_horizon", "--checkpoint", "--resume"])
     assert args.checkpoint is True
@@ -349,6 +384,26 @@ def test_belief_horizon_ablation_modes_change_exact_component() -> None:
     assert no_refinement.planner.belief_refinement_enabled is False
     assert no_refinement.planner.belief_efficiency_score is True
     assert no_refinement.planner.belief_track_prediction_enabled is True
+
+
+def test_adaptive_mission_ablation_modes_change_exact_component() -> None:
+    base = scenario_config("weak_drift", 0, "adaptive_mission")
+    no_route = scenario_config("weak_drift", 0, "adaptive_mission_no_route")
+    no_orienteering = scenario_config("weak_drift", 0, "adaptive_mission_no_orienteering")
+    no_local = scenario_config("weak_drift", 0, "adaptive_mission_no_local_exploit")
+    no_hysteresis = scenario_config("weak_drift", 0, "adaptive_mission_no_hysteresis")
+
+    assert base.planner.adaptive_route_enabled is True
+    assert base.planner.adaptive_orienteering_enabled is True
+    assert base.planner.adaptive_local_exploit_enabled is True
+    assert base.planner.adaptive_hysteresis_enabled is True
+
+    assert no_route.planner.adaptive_route_enabled is False
+    assert no_route.planner.adaptive_orienteering_enabled is True
+    assert no_orienteering.planner.adaptive_orienteering_enabled is False
+    assert no_orienteering.planner.adaptive_route_enabled is True
+    assert no_local.planner.adaptive_local_exploit_enabled is False
+    assert no_hysteresis.planner.adaptive_hysteresis_enabled is False
 
 
 def test_belief_provisional_modes_enable_only_provisional_targets() -> None:
@@ -1215,3 +1270,253 @@ def test_belief_horizon_runs_and_logs_score_components() -> None:
     assert "score_rollout_collection" in starts.columns
     assert "score_refine_bonus" in starts.columns
     assert starts["score_total"].notna().any()
+
+
+def test_adaptive_mission_uses_belief_horizon_without_confirmed_targets() -> None:
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=80.0, height_m=50.0, depot_x_m=5.0, depot_y_m=25.0, n_debris=1),
+        planner=replace(cfg.planner, adaptive_local_exploit_enabled=False),
+        grid=replace(cfg.grid, nx=40, ny=25),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    state = initial_state(cfg.world, cfg.planner)
+
+    decision = choose_goal(
+        0.0,
+        np.array(cfg.world.depot, dtype=float),
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+        field=None,
+        hydro=cfg.hydro,
+    )
+
+    assert decision.details["adaptive_selected_policy"] == "belief_horizon"
+    assert "adaptive_score_belief_horizon" in decision.details
+    assert decision.expected_value == decision.details["adaptive_utility"]
+
+
+def test_adaptive_mission_chooses_confirmed_route_for_fresh_targets_under_drift() -> None:
+    cfg = scenario_config("strong_drift", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=120.0, height_m=80.0, depot_x_m=5.0, depot_y_m=40.0, n_debris=1),
+        planner=replace(
+            cfg.planner,
+            adaptive_route_min_confirmed=2,
+            adaptive_route_target_count_weight=2.0,
+            adaptive_route_drift_bonus_weight=2.0,
+            adaptive_orienteering_enabled=False,
+            adaptive_local_exploit_enabled=False,
+        ),
+        grid=replace(cfg.grid, nx=60, ny=40),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    targets = _confirmed_target_queue(cfg, [(38.0, 35.0), (44.0, 42.0), (51.0, 38.0)])
+    state = initial_state(cfg.world, cfg.planner)
+
+    decision = choose_goal(
+        2.0,
+        np.array(cfg.world.depot, dtype=float),
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        targets,
+        field=None,
+        hydro=cfg.hydro,
+    )
+
+    assert decision.details["adaptive_selected_policy"] == "confirmed_route"
+    assert decision.mode == "route"
+    assert state.current_route is not None
+    assert decision.details["adaptive_fresh_confirmed_count"] >= 2.0
+    assert decision.details["adaptive_drift_speed_mps"] > 0.0
+
+
+def test_adaptive_mission_can_choose_orienteering_when_route_horizon_is_best() -> None:
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=80.0, height_m=50.0, depot_x_m=5.0, depot_y_m=25.0, n_debris=1),
+        platform=replace(cfg.platform, collection_width_m=2.0, collection_length_m=2.0),
+        planner=replace(
+            cfg.planner,
+            adaptive_route_enabled=False,
+            adaptive_local_exploit_enabled=False,
+            adaptive_rollout_collection_weight=0.0,
+            candidate_spacing_m=4.0,
+            belief_density_signal_threshold=0.0,
+            belief_density_peak_count=10,
+            belief_transect_count=4,
+            belief_unconfirmed_candidate_max_travel_m=120.0,
+            belief_orienteering_candidate_count=10,
+            belief_orienteering_depth=3,
+            belief_orienteering_beam_width=5,
+            belief_orienteering_max_first_leg_m=90.0,
+            belief_orienteering_max_route_m=140.0,
+            belief_orienteering_switch_margin=-1e9,
+        ),
+        grid=replace(cfg.grid, nx=40, ny=25),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    for center_x in [24.0, 32.0, 40.0]:
+        density_map.expected_count[
+            (np.abs(grid.yy - 25.0) <= 1.1)
+            & (np.abs(grid.xx - center_x) <= 1.1)
+        ] = 2.0
+    state = initial_state(cfg.world, cfg.planner)
+
+    decision = choose_goal(
+        0.0,
+        np.array(cfg.world.depot, dtype=float),
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+        field=None,
+        hydro=cfg.hydro,
+    )
+
+    assert decision.details["adaptive_selected_policy"] == "belief_orienteering"
+    assert decision.details["planning_mode"] == "receding_orienteering"
+    assert decision.details["adaptive_score_belief_orienteering"] > decision.details["adaptive_score_belief_horizon"]
+
+
+def test_adaptive_mission_hysteresis_keeps_previous_policy_within_margin() -> None:
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=120.0, height_m=80.0, depot_x_m=5.0, depot_y_m=40.0, n_debris=1),
+        planner=replace(
+            cfg.planner,
+            adaptive_switch_margin=1e6,
+            adaptive_route_min_confirmed=2,
+            adaptive_route_target_count_weight=2.0,
+            adaptive_orienteering_enabled=False,
+            adaptive_local_exploit_enabled=False,
+        ),
+        grid=replace(cfg.grid, nx=60, ny=40),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    targets = _confirmed_target_queue(cfg, [(38.0, 35.0), (44.0, 42.0), (51.0, 38.0)])
+    state = initial_state(cfg.world, cfg.planner)
+    state.adaptive_last_policy = "belief_horizon"
+
+    decision = choose_goal(
+        2.0,
+        np.array(cfg.world.depot, dtype=float),
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        targets,
+        field=None,
+        hydro=cfg.hydro,
+    )
+
+    assert decision.details["adaptive_selected_policy"] == "belief_horizon"
+    assert decision.details["adaptive_score_confirmed_route"] > decision.details["adaptive_score_belief_horizon"]
+
+
+def test_adaptive_mission_preview_does_not_mutate_state_or_targets() -> None:
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    targets = _confirmed_target_queue(cfg, [(40.0, 90.0), (50.0, 95.0)])
+    state = initial_state(cfg.world, cfg.planner)
+    original_index = state.coverage_index
+    original_track_count = len(targets.tracks)
+
+    decision = _preview_adaptive_policy(
+        "confirmed_route",
+        2.0,
+        np.array(cfg.world.depot, dtype=float),
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        targets,
+    )
+
+    assert decision is not None
+    assert state.current_route is None
+    assert state.coverage_index == original_index
+    assert len(targets.tracks) == original_track_count
+
+
+def test_adaptive_mission_ignores_truth_field_like_other_non_oracle_modes() -> None:
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=80.0, height_m=50.0, depot_x_m=5.0, depot_y_m=25.0, n_debris=1),
+        planner=replace(cfg.planner, adaptive_local_exploit_enabled=False),
+        grid=replace(cfg.grid, nx=40, ny=25),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    field = _field_at([(75.0, 45.0)])
+
+    no_truth = choose_goal(
+        0.0,
+        np.array(cfg.world.depot, dtype=float),
+        initial_state(cfg.world, cfg.planner),
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+        field=None,
+        hydro=cfg.hydro,
+    )
+    with_truth = choose_goal(
+        0.0,
+        np.array(cfg.world.depot, dtype=float),
+        initial_state(cfg.world, cfg.planner),
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+        field=field,
+        hydro=cfg.hydro,
+    )
+
+    assert np.allclose(no_truth.point, with_truth.point)
+    assert no_truth.details["adaptive_selected_policy"] == with_truth.details["adaptive_selected_policy"]
+
+
+def test_adaptive_mission_runs_and_logs_selector_diagnostics() -> None:
+    cfg = scenario_config("weak_drift", 3, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=50.0, height_m=50.0, depot_x_m=5.0, depot_y_m=25.0, n_debris=8),
+        platform=replace(cfg.platform, max_path_m=120.0, tmax_s=400.0),
+        grid=replace(cfg.grid, nx=25, ny=25),
+    )
+
+    result = run_simulation(cfg)
+
+    assert result.summary["mode"] == "adaptive_mission"
+    starts = result.events[result.events["event"] == "goal_started"]
+    assert not starts.empty
+    assert "adaptive_selected_policy" in starts.columns
+    assert starts["adaptive_selected_policy"].notna().any()
+    assert "adaptive_drift_speed_mps" in starts.columns

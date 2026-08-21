@@ -82,6 +82,7 @@ def _motion_speed(
         "density_transect",
         "cluster_route_transect",
         "confirmed_target_local_sweep",
+        "density_local_sweep",
     }
     if (
         config.planner.belief_transect_collection_speed_enabled
@@ -328,6 +329,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 config.planner,
                 target_queue,
                 field,
+                config.hydro,
             )
             current_goal = decision.point
             current_goal_mode = decision.mode
@@ -363,6 +365,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 config.planner,
                 target_queue,
                 field,
+                config.hydro,
             )
             if np.linalg.norm(decision.point - current_goal) > config.platform.arrival_tolerance_m:
                 current_goal = decision.point
@@ -508,6 +511,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 "provisional_target_transect",
                 "density_transect",
                 "confirmed_target_local_sweep",
+                "density_local_sweep",
                 "cluster_route_transect",
             }
             empty_suppression_radius = config.planner.target_suppression_radius_m
