@@ -130,13 +130,54 @@ def test_layer1_enrich_summary_adds_regret_against_best_fixed_mode() -> None:
                 "collected_ratio": 0.45,
                 "auc_collected_by_path": 0.35,
             },
+            {
+                "path_budget_m": 2400,
+                "scenario": "static_calm",
+                "profile": "nominal",
+                "seed": 31,
+                "mode": "belief_horizon",
+                "collected_ratio": 0.5,
+                "auc_collected_by_path": 0.4,
+            },
+            {
+                "path_budget_m": 2400,
+                "scenario": "static_calm",
+                "profile": "nominal",
+                "seed": 31,
+                "mode": "adaptive_mission",
+                "collected_ratio": 0.55,
+                "auc_collected_by_path": 0.45,
+            },
+            {
+                "path_budget_m": 2400,
+                "scenario": "static_calm",
+                "profile": "nominal",
+                "seed": 31,
+                "mode": "oracle_current_physics",
+                "collected_ratio": 1.0,
+                "auc_collected_by_path": 0.8,
+            },
         ]
     )
 
     enriched = enrich_summary(df)
-    adaptive = enriched[enriched["mode"] == "adaptive_mission"].iloc[0]
+    adaptive = enriched[(enriched["mode"] == "adaptive_mission") & (enriched["seed"] == 30)].iloc[0]
+    better_adaptive = enriched[(enriched["mode"] == "adaptive_mission") & (enriched["seed"] == 31)].iloc[0]
+    oracle = enriched[(enriched["mode"] == "oracle_current_physics") & (enriched["seed"] == 31)].iloc[0]
 
     assert adaptive["best_fixed_auc_collected_by_path"] == 0.4
     assert adaptive["best_fixed_collected_ratio"] == 0.5
     assert adaptive["regret_to_best_fixed_auc"] == pytest.approx(0.05)
     assert adaptive["regret_to_best_fixed_collected_ratio"] == pytest.approx(0.05)
+    assert adaptive["delta_vs_best_fixed_auc"] == pytest.approx(-0.05)
+    assert adaptive["gain_vs_best_fixed_auc"] == pytest.approx(0.0)
+
+    assert better_adaptive["regret_to_best_fixed_auc"] == pytest.approx(0.0)
+    assert better_adaptive["regret_to_best_fixed_collected_ratio"] == pytest.approx(0.0)
+    assert better_adaptive["delta_vs_best_fixed_auc"] == pytest.approx(0.05)
+    assert better_adaptive["delta_vs_best_fixed_collected_ratio"] == pytest.approx(0.05)
+    assert better_adaptive["gain_vs_best_fixed_auc"] == pytest.approx(0.05)
+    assert better_adaptive["gain_vs_best_fixed_collected_ratio"] == pytest.approx(0.05)
+
+    assert math.isnan(oracle["regret_to_best_fixed_auc"])
+    assert math.isnan(oracle["delta_vs_best_fixed_auc"])

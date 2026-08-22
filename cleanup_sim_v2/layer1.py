@@ -122,6 +122,10 @@ def _add_regret_columns(summary: pd.DataFrame) -> pd.DataFrame:
     regret_cols = [
         "best_fixed_auc_collected_by_path",
         "best_fixed_collected_ratio",
+        "delta_vs_best_fixed_auc",
+        "delta_vs_best_fixed_collected_ratio",
+        "gain_vs_best_fixed_auc",
+        "gain_vs_best_fixed_collected_ratio",
         "regret_to_best_fixed_auc",
         "regret_to_best_fixed_collected_ratio",
     ]
@@ -131,6 +135,10 @@ def _add_regret_columns(summary: pd.DataFrame) -> pd.DataFrame:
     if fixed.empty:
         df["best_fixed_auc_collected_by_path"] = math.nan
         df["best_fixed_collected_ratio"] = math.nan
+        df["delta_vs_best_fixed_auc"] = math.nan
+        df["delta_vs_best_fixed_collected_ratio"] = math.nan
+        df["gain_vs_best_fixed_auc"] = math.nan
+        df["gain_vs_best_fixed_collected_ratio"] = math.nan
         df["regret_to_best_fixed_auc"] = math.nan
         df["regret_to_best_fixed_collected_ratio"] = math.nan
         return df
@@ -138,8 +146,22 @@ def _add_regret_columns(summary: pd.DataFrame) -> pd.DataFrame:
     best_auc = fixed.groupby(group_cols)["auc_collected_by_path"].max().rename("best_fixed_auc_collected_by_path")
     best_collected = fixed.groupby(group_cols)["collected_ratio"].max().rename("best_fixed_collected_ratio")
     df = df.merge(best_auc, on=group_cols, how="left").merge(best_collected, on=group_cols, how="left")
-    df["regret_to_best_fixed_auc"] = df["best_fixed_auc_collected_by_path"] - df["auc_collected_by_path"]
-    df["regret_to_best_fixed_collected_ratio"] = df["best_fixed_collected_ratio"] - df["collected_ratio"]
+    df["delta_vs_best_fixed_auc"] = df["auc_collected_by_path"] - df["best_fixed_auc_collected_by_path"]
+    df["delta_vs_best_fixed_collected_ratio"] = df["collected_ratio"] - df["best_fixed_collected_ratio"]
+    df["gain_vs_best_fixed_auc"] = df["delta_vs_best_fixed_auc"].clip(lower=0.0)
+    df["gain_vs_best_fixed_collected_ratio"] = df["delta_vs_best_fixed_collected_ratio"].clip(lower=0.0)
+    df["regret_to_best_fixed_auc"] = (-df["delta_vs_best_fixed_auc"]).clip(lower=0.0)
+    df["regret_to_best_fixed_collected_ratio"] = (-df["delta_vs_best_fixed_collected_ratio"]).clip(lower=0.0)
+    oracle_mask = df["mode"] == ORACLE_MODE
+    comparison_cols = [
+        "delta_vs_best_fixed_auc",
+        "delta_vs_best_fixed_collected_ratio",
+        "gain_vs_best_fixed_auc",
+        "gain_vs_best_fixed_collected_ratio",
+        "regret_to_best_fixed_auc",
+        "regret_to_best_fixed_collected_ratio",
+    ]
+    df.loc[oracle_mask, comparison_cols] = math.nan
     return df
 
 
@@ -199,7 +221,7 @@ def adaptive_policy_shares(run_dirs: Iterable[Path]) -> pd.DataFrame:
     rows: list[dict] = []
     for run_dir in run_dirs:
         for events_path in sorted(run_dir.rglob("*_events.csv")):
-            events = pd.read_csv(events_path)
+            events = pd.read_csv(events_path, low_memory=False)
             if "adaptive_selected_policy" not in events.columns:
                 continue
             policies = events["adaptive_selected_policy"].dropna()
