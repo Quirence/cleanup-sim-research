@@ -421,7 +421,11 @@ def scenario_config(
     if mode in {"coverage", "lawnmower_survey"}:
         planner = replace(planner, coverage_spacing_m=survey_lawnmower_spacing_m(sensors))
     elif mode == "lawnmower_collect":
-        planner = replace(planner, coverage_spacing_m=max(0.25, 0.8 * platform.collection_width_m))
+        planner = replace(
+            planner,
+            coverage_spacing_m=max(0.25, 0.8 * platform.collection_width_m),
+            coverage_margin_m=max(0.0, 0.5 * platform.collection_width_m),
+        )
     return RunConfig(
         seed=seed,
         scenario=name,
