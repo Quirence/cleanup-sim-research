@@ -28,10 +28,13 @@ def git_commit() -> str:
     return result.stdout.strip() or "unknown"
 
 
-def git_dirty() -> bool:
+def git_dirty(include_untracked: bool = False) -> bool:
+    command = ["git", "status", "--short"]
+    if not include_untracked:
+        command.append("--untracked-files=no")
     try:
         result = subprocess.run(
-            ["git", "status", "--short"],
+            command,
             check=True,
             capture_output=True,
             text=True,

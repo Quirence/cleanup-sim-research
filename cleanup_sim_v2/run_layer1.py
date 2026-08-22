@@ -22,6 +22,7 @@ from .layer1 import (
     safety_tmax_s,
     write_json,
 )
+from .layer1_validation import ExpectedMatrix, has_failing_issues, validate_summary, write_validation_outputs
 from .simulation import run_simulation
 
 
@@ -42,19 +43,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--save-runs", action="store_true", help="Save detailed run artifacts for every executed run.")
+    parser.add_argument("--skip-validation", action="store_true", help="Do not validate the final summary.")
+    parser.add_argument("--fail-on", choices=["blocker", "major", "warning"], default="major")
     return parser
 
 
 def _default_calibration_dir(out_root: Path) -> Path:
-    return out_root / "layer1_budget_calibration_2026-08-21"
+    return out_root / "layer1_postfix_budget_calibration_2026-08-22"
 
 
 def _default_baseline_dir(out_root: Path) -> Path:
-    return out_root / "layer1_path_budget_baseline_2026-08-21"
+    return out_root / "layer1_postfix_path_budget_baseline_2026-08-22"
 
 
 def _default_trace_dir(out_root: Path) -> Path:
-    return out_root / "layer1_adaptive_trace_2026-08-21"
+    return out_root / "layer1_postfix_adaptive_trace_2026-08-22"
 
 
 def _completed_keys(summary: list[dict]) -> set[tuple[float, str, str, str, int]]:
@@ -151,6 +154,8 @@ def run_series(
     save_runs: bool,
     checkpoint: bool,
     resume: bool,
+    validate_outputs: bool,
+    fail_on: str,
 ) -> pd.DataFrame:
     out_dir.mkdir(parents=True, exist_ok=True)
     partial_path = out_dir / "summary_partial.csv"
@@ -212,9 +217,24 @@ def run_series(
             "save_runs": save_runs,
             "checkpoint": checkpoint,
             "resume": resume,
+            "validation": validate_outputs,
+            "fail_on": fail_on,
             "standard_budget_tmax_s": {str(b): safety_tmax_s(b) for b in LAYER1_BUDGETS_M},
         },
     )
+    if validate_outputs:
+        expected = ExpectedMatrix(
+            budgets=tuple(float(budget) for budget in budgets),
+            scenarios=tuple(str(scenario) for scenario in scenarios),
+            modes=tuple(str(mode) for mode in modes),
+            profile=str(profile),
+            seed_start=int(seed_start),
+            seeds=int(seeds),
+        )
+        issues = validate_summary(enriched, expected=expected)
+        write_validation_outputs(out_dir, issues)
+        if has_failing_issues(issues, fail_on):
+            raise SystemExit(f"Layer-1 validation failed; inspect {out_dir / 'validation_issues.csv'}")
     print(f"summary: {out_dir / 'summary.csv'}")
     print(f"summary enriched: {out_dir / 'summary_enriched.csv'}")
     print(f"aggregate: {out_dir / 'aggregate_mean_std.csv'}")
@@ -235,6 +255,8 @@ def run_calibration(args: argparse.Namespace) -> tuple[pd.DataFrame, float | Non
         save_runs=args.save_runs,
         checkpoint=args.checkpoint,
         resume=args.resume,
+        validate_outputs=not args.skip_validation,
+        fail_on=args.fail_on,
     )
     calibration = evaluate_budget_calibration(enriched)
     calibration.to_csv(out_dir / "budget_calibration_decision.csv", index=False)
@@ -259,6 +281,8 @@ def run_baseline(args: argparse.Namespace, budget: float) -> pd.DataFrame:
         save_runs=args.save_runs,
         checkpoint=args.checkpoint,
         resume=args.resume,
+        validate_outputs=not args.skip_validation,
+        fail_on=args.fail_on,
     )
 
 
@@ -276,6 +300,8 @@ def run_trace(args: argparse.Namespace, budget: float) -> pd.DataFrame:
         save_runs=True,
         checkpoint=args.checkpoint,
         resume=args.resume,
+        validate_outputs=not args.skip_validation,
+        fail_on=args.fail_on,
     )
     shares = adaptive_policy_shares([out_dir / "runs"])
     shares.to_csv(out_dir / "adaptive_policy_shares.csv", index=False)
