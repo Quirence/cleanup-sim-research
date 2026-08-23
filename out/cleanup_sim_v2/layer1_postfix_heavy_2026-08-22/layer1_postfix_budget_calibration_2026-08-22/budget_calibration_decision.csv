@@ -1,0 +1,5 @@
+path_budget_m,time_budget_rate_non_oracle,oracle_scenarios_median_ge_0_90,nonsaturated_best_non_oracle_scenarios,distinct_auc_scenarios,passes_layer1_budget_gate
+1200.0,0.0,1,4,0,False
+2400.0,0.0,4,3,3,True
+3600.0,0.0,4,3,3,True
+7200.0,0.0,4,1,1,False
