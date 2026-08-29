@@ -1337,6 +1337,7 @@ def next_belief_orienteering(
     platform: PlatformConfig,
     planner: PlannerConfig,
     targets: TargetQueue,
+    bypass_switch_margin: bool = False,
 ) -> GoalDecision:
     fallback = next_belief_horizon(t_s, current, state, density_map, world, platform, planner, targets)
     if state.current_route:
@@ -1389,7 +1390,13 @@ def next_belief_orienteering(
 
     if best_beam is None or not best_beam.route:
         return _as_orienteering_fallback(fallback)
-    if best_score <= fallback.expected_value + planner.belief_orienteering_switch_margin:
+    if not bypass_switch_margin and best_score <= fallback.expected_value + planner.belief_orienteering_switch_margin:
+        # Standalone `belief_orienteering` mode uses this margin to stay conservative
+        # about abandoning a decent belief_horizon pick. When called from
+        # `adaptive_mission`'s preview, that conservatism is redundant: the selector
+        # already re-scores every policy on the same unified utility and applies its
+        # own hysteresis margin, so gating candidacy here a second time just starves
+        # adaptive_mission of a fair comparison.
         return _as_orienteering_fallback(fallback)
 
     details: dict[str, float | str] = {
@@ -1522,20 +1529,50 @@ def _next_confirmed_route_decision(
 ) -> GoalDecision:
     confirmed = targets.confirmed_targets(t_s)
     if confirmed:
+        # NOTE: tried starting the route at the best expected-collection/effort
+        # confirmed target instead of the nearest one (matching belief_horizon's
+        # own best-of-all-candidates search). A small toy-budget probe looked
+        # favorable, but a paired 3-seed/3000m trace against the real layer-1
+        # budget showed it made mean AUC *worse* (-0.093 vs -0.060 without it) -
+        # the toy-budget proxy did not transfer to the real budget scale. Reverted;
+        # plain nearest-neighbor is what's validated here. See
+        # docs/project/adaptive_mission_revision_report_2026-08-29.md.
         state.current_route = nearest_neighbor_route(current, confirmed, planner.route_batch_size)
         state.current_route_mode = "route"
         state.current_route_reason = "confirmed_target_route"
         route_length = _route_length(current, state.current_route)
-        expected_collection = _route_expected_count(density_map, current, state.current_route, platform, planner)
+        total_expected_collection = _route_expected_count(density_map, current, state.current_route, platform, planner)
+        # Split collection into the leg actually committed before the next replan
+        # (first_leg_collection, charged against first-leg effort like every other
+        # policy) and the discounted look-ahead value of the rest of the route
+        # (rollout_collection). Charging the *whole* route's effort against the
+        # whole route's benefit made confirmed_route structurally uncompetitive
+        # against single-step belief_horizon in the unified utility (see
+        # `_adaptive_utility`), since the robot only ever walks to route[0] before
+        # the next planning call re-derives the route from scratch.
+        first_leg_collection = (
+            _swept_expected_count(density_map, current, state.current_route[0], platform)
+            if state.current_route
+            else 0.0
+        )
+        # Average the remaining legs' collection into a single per-leg figure
+        # rather than summing all of them uncapped: belief_horizon's own rollout
+        # term is a *single* best-next-step estimate (see `_best_followup_collection`
+        # in `next_belief_horizon`), so crediting confirmed_route with the sum of up
+        # to `route_batch_size` future legs at the same weight - while charging zero
+        # extra effort for any of them - overstated its value relative to
+        # belief_horizon's like-for-like single-step lookahead.
+        remaining_legs = max(1, len(state.current_route) - 1)
+        rollout_collection = max(0.0, total_expected_collection - first_leg_collection) / remaining_legs
         state.current_route_details = {
             "candidate_type": "confirmed_target_route",
             "route_points": float(len(state.current_route)),
             "route_length_m": float(route_length),
-            "score_expected_collection": float(expected_collection),
-            "score_rollout_collection": 0.0,
+            "score_expected_collection": float(first_leg_collection),
+            "score_rollout_collection": float(rollout_collection),
             "score_information_gain": 0.0,
             "score_target_confirmation": float(len(confirmed)),
-            "score_empty_risk": float(np.exp(-max(0.0, expected_collection))),
+            "score_empty_risk": float(np.exp(-max(0.0, first_leg_collection))),
             "score_stale_risk": 0.0,
             "score_path_cost": float(route_length),
         }
@@ -1601,22 +1638,30 @@ def _next_local_exploit_decision(
         return None
 
     route_length = _route_length(current, route)
-    expected_collection = _route_expected_count(density_map, current, route, platform, planner)
+    total_expected_collection = _route_expected_count(density_map, current, route, platform, planner)
+    # Same first-leg/rollout split and per-leg rollout averaging rationale as
+    # `_next_confirmed_route_decision`: the local sweep is re-derived from scratch
+    # every planning call, so only the first leg is an actual near-term commitment,
+    # and the remaining lanes' value is averaged to stay comparable to
+    # belief_horizon's single-step rollout rather than summed uncapped.
+    first_leg_collection = _swept_expected_count(density_map, current, route[0], platform)
+    remaining_legs = max(1, len(route) - 1)
+    rollout_collection = max(0.0, total_expected_collection - first_leg_collection) / remaining_legs
     information_gain = _local_entropy_gain(density_map, focus, planner.candidate_spacing_m)
     stale_risk = min(1.0, age_s / max(1.0, planner.target_stale_after_s))
     details: dict[str, float | str] = {
         "candidate_type": focus_kind,
         "planning_mode": "adaptive_local_exploit",
-        "score_total": float(ready_score if ready_track is not None else expected_collection),
-        "score_benefit": float(expected_collection + confidence),
+        "score_total": float(ready_score if ready_track is not None else total_expected_collection),
+        "score_benefit": float(total_expected_collection + confidence),
         "score_risk_penalty": float(stale_risk),
         "score_effort_m": float(route_length),
-        "score_expected_collection": float(expected_collection),
-        "score_rollout_collection": 0.0,
+        "score_expected_collection": float(first_leg_collection),
+        "score_rollout_collection": float(rollout_collection),
         "score_information_gain": float(information_gain),
         "score_target_confirmation": float(confidence),
         "score_refine_bonus": 0.0,
-        "score_empty_risk": float(np.exp(-max(0.0, expected_collection))),
+        "score_empty_risk": float(np.exp(-max(0.0, first_leg_collection))),
         "score_stale_risk": float(stale_risk),
         "score_path_cost": float(route_length),
         "target_uncertainty_m": float(uncertainty_m),
@@ -1628,7 +1673,7 @@ def _next_local_exploit_decision(
     state.current_route_mode = "belief_horizon"
     state.current_route_reason = "adaptive_local_exploit"
     state.current_route_details = details
-    return GoalDecision(route[0].copy(), "belief_horizon", "adaptive_local_exploit", float(expected_collection), details)
+    return GoalDecision(route[0].copy(), "belief_horizon", "adaptive_local_exploit", float(total_expected_collection), details)
 
 
 def _preview_adaptive_policy(
@@ -1647,7 +1692,9 @@ def _preview_adaptive_policy(
     if policy == "belief_horizon":
         return next_belief_horizon(t_s, current, preview_state, density_map, world, platform, planner, preview_targets)
     if policy == "belief_orienteering":
-        decision = next_belief_orienteering(t_s, current, preview_state, density_map, world, platform, planner, preview_targets)
+        decision = next_belief_orienteering(
+            t_s, current, preview_state, density_map, world, platform, planner, preview_targets, bypass_switch_margin=True
+        )
         if decision.details.get("planning_mode") != "receding_orienteering":
             return None
         return decision
@@ -1670,7 +1717,9 @@ def _execute_adaptive_policy(
     targets: TargetQueue,
 ) -> GoalDecision:
     if policy == "belief_orienteering":
-        return next_belief_orienteering(t_s, current, state, density_map, world, platform, planner, targets)
+        return next_belief_orienteering(
+            t_s, current, state, density_map, world, platform, planner, targets, bypass_switch_margin=True
+        )
     if policy == "confirmed_route":
         return _next_confirmed_route_decision(current, state, density_map, platform, planner, targets, t_s)
     if policy == "local_exploit":
@@ -1714,13 +1763,14 @@ def _adaptive_utility(
             ),
         )
     )
-    if policy in {"confirmed_route", "local_exploit"}:
-        effort_m = max(route_effort, first_leg_m, platform.collection_approach_radius_m)
-    else:
-        # Receding-horizon policies use route/rollout only to score the next action;
-        # they are free to replan after the first leg, so the selector charges the
-        # committed first-leg cost rather than the whole hypothetical horizon.
-        effort_m = max(first_leg_m, platform.collection_approach_radius_m)
+    # Every policy is free to replan after the first leg (confirmed_route and
+    # local_exploit are both re-derived from scratch on the next call), so the
+    # selector charges the committed first-leg cost for all of them rather than a
+    # whole hypothetical multi-leg route. `route_effort` (the full route length) is
+    # kept only as a diagnostic below; charging it here previously made
+    # confirmed_route/local_exploit structurally uncompetitive against
+    # belief_horizon regardless of how good the route actually was.
+    effort_m = max(first_leg_m, platform.collection_approach_radius_m)
     swept_collection = _swept_expected_count(density_map, current, decision.point, platform)
     expected_collection = max(float(details.get("score_expected_collection", 0.0)), swept_collection)
     rollout_collection = float(details.get("score_rollout_collection", 0.0))
@@ -1771,6 +1821,7 @@ def _adaptive_utility(
         "adaptive_target_confirmation": float(target_confirmation),
         "adaptive_empty_goal_risk": float(empty_risk),
         "adaptive_stale_target_risk": float(stale_risk),
+        "adaptive_route_effort_m": float(route_effort),
     }
     return float(utility), diagnostics
 

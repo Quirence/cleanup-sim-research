@@ -1,0 +1,8 @@
+{
+  "issue_count": 1,
+  "by_severity": {
+    "major": 1
+  },
+  "has_major_or_blocker": true,
+  "has_blocker": false
+}

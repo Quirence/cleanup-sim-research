@@ -1,0 +1,38 @@
+{
+  "runner": "cleanup_sim_v2.run_layer1",
+  "phase": "baseline",
+  "git_commit": "0641409",
+  "git_dirty": true,
+  "budgets": [
+    3000.0
+  ],
+  "seeds": 10,
+  "seed_start": 330,
+  "scenarios": [
+    "static_calm",
+    "weak_drift",
+    "strong_drift",
+    "robot_disturbed"
+  ],
+  "modes": [
+    "greedy",
+    "confirmed_route",
+    "belief_horizon",
+    "belief_orienteering",
+    "belief_orienteering_depth1",
+    "adaptive_mission",
+    "oracle_current_physics"
+  ],
+  "profile": "nominal",
+  "save_runs": false,
+  "checkpoint": true,
+  "resume": false,
+  "validation": true,
+  "fail_on": "major",
+  "standard_budget_tmax_s": {
+    "1200.0": 8000.0,
+    "2400.0": 13200.0,
+    "3600.0": 20000.0,
+    "7200.0": 40000.0
+  }
+}

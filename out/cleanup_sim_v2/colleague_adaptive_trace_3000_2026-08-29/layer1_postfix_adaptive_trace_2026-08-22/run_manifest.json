@@ -1,0 +1,32 @@
+{
+  "runner": "cleanup_sim_v2.run_layer1",
+  "phase": "trace",
+  "git_commit": "0641409",
+  "git_dirty": false,
+  "budgets": [
+    3000.0
+  ],
+  "seeds": 3,
+  "seed_start": 300,
+  "scenarios": [
+    "static_calm",
+    "weak_drift",
+    "strong_drift",
+    "robot_disturbed"
+  ],
+  "modes": [
+    "adaptive_mission"
+  ],
+  "profile": "nominal",
+  "save_runs": true,
+  "checkpoint": true,
+  "resume": false,
+  "validation": true,
+  "fail_on": "major",
+  "standard_budget_tmax_s": {
+    "1200.0": 8000.0,
+    "2400.0": 13200.0,
+    "3600.0": 20000.0,
+    "7200.0": 40000.0
+  }
+}

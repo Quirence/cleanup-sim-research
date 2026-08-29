@@ -31,6 +31,7 @@ from cleanup_sim_v2.planners import (
     initial_state,
     make_coverage_route,
     next_active,
+    next_belief_orienteering,
 )
 from cleanup_sim_v2.run_experiments import ALL_MODES, BASELINE_MODES, build_parser as build_experiment_parser
 from cleanup_sim_v2.sensors import Detection, detect_with_sensor
@@ -1520,3 +1521,150 @@ def test_adaptive_mission_runs_and_logs_selector_diagnostics() -> None:
     assert "adaptive_selected_policy" in starts.columns
     assert starts["adaptive_selected_policy"].notna().any()
     assert "adaptive_drift_speed_mps" in starts.columns
+
+
+def test_confirmed_route_effort_is_first_leg_not_whole_route() -> None:
+    """Regression for the unified-utility scale bug: confirmed_route used to be
+    charged the full multi-leg route length as its effort denominator while every
+    other adaptive policy only paid for the first committed leg, which made routes
+    structurally uncompetitive against belief_horizon regardless of their actual
+    value. The effort charged to a selected confirmed_route decision must match
+    the same first-leg accounting as any other policy, while the full route length
+    remains available separately as a diagnostic."""
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=150.0, height_m=100.0, depot_x_m=5.0, depot_y_m=50.0, n_debris=1),
+        planner=replace(cfg.planner, adaptive_orienteering_enabled=False, adaptive_local_exploit_enabled=False),
+        grid=replace(cfg.grid, nx=75, ny=50),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    targets = _confirmed_target_queue(
+        cfg,
+        [
+            (20.0, 50.0),
+            (35.0, 52.0),
+            (50.0, 48.0),
+            (65.0, 55.0),
+            (80.0, 46.0),
+            (100.0, 45.0),
+            (115.0, 58.0),
+            (130.0, 60.0),
+        ],
+    )
+    state = initial_state(cfg.world, cfg.planner)
+    start = np.array(cfg.world.depot, dtype=float)
+
+    decision = choose_goal(
+        0.0,
+        start,
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        targets,
+        field=None,
+        hydro=cfg.hydro,
+    )
+
+    assert decision.details["adaptive_selected_policy"] == "confirmed_route"
+    first_leg_m = float(np.linalg.norm(decision.point - start))
+    expected_effort = max(first_leg_m, cfg.platform.collection_approach_radius_m)
+    assert np.isclose(decision.details["adaptive_effort_m"], expected_effort)
+    assert decision.details["adaptive_route_effort_m"] > decision.details["adaptive_effort_m"] * 1.5
+
+
+def test_adaptive_route_drift_override_min_ratio_is_below_one() -> None:
+    """`adaptive_route_drift_override_min_ratio` gates a fallback override intended
+    to force confirmed_route under sustained drift with abundant fresh confirmed
+    targets even when its unified-utility score trails the best candidate. At 1.0
+    the override condition (`route_score >= best_score * ratio`) degenerates to
+    `route_score >= best_score`, which can only hold when confirmed_route was
+    already the argmax - i.e. the override could never change the selection. This
+    guards against reintroducing that no-op."""
+    cfg = scenario_config("strong_drift", 0, "adaptive_mission")
+    assert cfg.planner.adaptive_route_drift_override_min_ratio < 1.0
+
+
+def test_adaptive_route_drift_override_selects_confirmed_route_with_default_weights() -> None:
+    """End-to-end check that the drift override actually fires with unmodified
+    adaptive_* weights (not hand-tuned test weights) under strong, sustained drift
+    with enough fresh confirmed targets - the exact condition it exists for."""
+    cfg = scenario_config("strong_drift", 300, "adaptive_mission")
+    cfg = replace(cfg, platform=replace(cfg.platform, max_path_m=800.0, tmax_s=6000.0))
+
+    result = run_simulation(cfg)
+
+    starts = result.events[result.events["event"] == "goal_started"]
+    confirmed_route_rows = starts[starts["adaptive_selected_policy"] == "confirmed_route"]
+    assert not confirmed_route_rows.empty
+    assert (confirmed_route_rows["adaptive_route_override_used"] == 1.0).any()
+
+
+def test_adaptive_preview_bypasses_orienteering_standalone_switch_margin() -> None:
+    """`belief_orienteering`'s own switch margin exists to keep the *standalone*
+    mode conservative about abandoning a decent belief_horizon pick. When
+    `adaptive_mission` previews orienteering it already re-scores every policy on
+    the same unified utility and applies its own hysteresis margin, so gating
+    candidacy a second time inside next_belief_orienteering only starves adaptive
+    of a fair comparison. This checks the preview path bypasses that margin while
+    standalone calls (bypass_switch_margin=False, the default) still respect it."""
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=80.0, height_m=50.0, depot_x_m=5.0, depot_y_m=25.0, n_debris=1),
+        platform=replace(cfg.platform, collection_width_m=2.0, collection_length_m=2.0),
+        planner=replace(
+            cfg.planner,
+            candidate_spacing_m=4.0,
+            belief_density_signal_threshold=0.0,
+            belief_density_peak_count=10,
+            belief_transect_count=4,
+            belief_unconfirmed_candidate_max_travel_m=120.0,
+            belief_orienteering_candidate_count=10,
+            belief_orienteering_depth=3,
+            belief_orienteering_beam_width=5,
+            belief_orienteering_max_first_leg_m=90.0,
+            belief_orienteering_max_route_m=140.0,
+            belief_orienteering_switch_margin=1e9,
+        ),
+        grid=replace(cfg.grid, nx=40, ny=25),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    for center_x in [24.0, 32.0, 40.0]:
+        density_map.expected_count[
+            (np.abs(grid.yy - 25.0) <= 1.1)
+            & (np.abs(grid.xx - center_x) <= 1.1)
+        ] = 2.0
+    current = np.array(cfg.world.depot, dtype=float)
+
+    standalone = next_belief_orienteering(
+        0.0,
+        current,
+        initial_state(cfg.world, cfg.planner),
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+    )
+    assert standalone.details.get("planning_mode") != "receding_orienteering"
+
+    preview = _preview_adaptive_policy(
+        "belief_orienteering",
+        0.0,
+        current,
+        initial_state(cfg.world, cfg.planner),
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+    )
+    assert preview is not None
+    assert preview.details.get("planning_mode") == "receding_orienteering"
