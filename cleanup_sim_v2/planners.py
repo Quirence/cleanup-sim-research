@@ -1542,14 +1542,9 @@ def _next_confirmed_route_decision(
         state.current_route_reason = "confirmed_target_route"
         route_length = _route_length(current, state.current_route)
         total_expected_collection = _route_expected_count(density_map, current, state.current_route, platform, planner)
-        # Split collection into the leg actually committed before the next replan
-        # (first_leg_collection, charged against first-leg effort like every other
-        # policy) and the discounted look-ahead value of the rest of the route
-        # (rollout_collection). Charging the *whole* route's effort against the
-        # whole route's benefit made confirmed_route structurally uncompetitive
-        # against single-step belief_horizon in the unified utility (see
-        # `_adaptive_utility`), since the robot only ever walks to route[0] before
-        # the next planning call re-derives the route from scratch.
+        # The selector uses first-leg collection and mean future-leg collection.
+        # Execution still commits the queued route until completion/invalidation;
+        # this score is a heuristic, not the utility of that full commitment.
         first_leg_collection = (
             _swept_expected_count(density_map, current, state.current_route[0], platform)
             if state.current_route
@@ -1639,11 +1634,8 @@ def _next_local_exploit_decision(
 
     route_length = _route_length(current, route)
     total_expected_collection = _route_expected_count(density_map, current, route, platform, planner)
-    # Same first-leg/rollout split and per-leg rollout averaging rationale as
-    # `_next_confirmed_route_decision`: the local sweep is re-derived from scratch
-    # every planning call, so only the first leg is an actual near-term commitment,
-    # and the remaining lanes' value is averaged to stay comparable to
-    # belief_horizon's single-step rollout rather than summed uncapped.
+    # Match the route score's first-leg/mean-rollout convention. The remaining
+    # sweep lanes stay queued; they are not replanned after every leg.
     first_leg_collection = _swept_expected_count(density_map, current, route[0], platform)
     remaining_legs = max(1, len(route) - 1)
     rollout_collection = max(0.0, total_expected_collection - first_leg_collection) / remaining_legs
@@ -1763,13 +1755,9 @@ def _adaptive_utility(
             ),
         )
     )
-    # Every policy is free to replan after the first leg (confirmed_route and
-    # local_exploit are both re-derived from scratch on the next call), so the
-    # selector charges the committed first-leg cost for all of them rather than a
-    # whole hypothetical multi-leg route. `route_effort` (the full route length) is
-    # kept only as a diagnostic below; charging it here previously made
-    # confirmed_route/local_exploit structurally uncompetitive against
-    # belief_horizon regardless of how good the route actually was.
+    # First-leg normalization is the revision's heuristic. Queued routes can
+    # execute further legs without invoking the selector; route_effort records
+    # the longer commitment whose cost is not fully represented by this score.
     effort_m = max(first_leg_m, platform.collection_approach_radius_m)
     swept_collection = _swept_expected_count(density_map, current, decision.point, platform)
     expected_collection = max(float(details.get("score_expected_collection", 0.0)), swept_collection)
@@ -1922,6 +1910,8 @@ def next_adaptive_mission(
     details.update(
         {
             "adaptive_selected_policy": selected_policy,
+            "adaptive_selector_invoked": 1.0,
+            "adaptive_route_continuation": 0.0,
             "adaptive_confirmed_count": float(confirmed_count),
             "adaptive_fresh_confirmed_count": float(fresh_confirmed_count),
             "adaptive_density_signal": float(_relative_signal(density_map.expected_count)),
@@ -1929,6 +1919,7 @@ def next_adaptive_mission(
             "adaptive_switch_margin_used": float(planner.adaptive_switch_margin if planner.adaptive_hysteresis_enabled else 0.0),
             "adaptive_policy_count": float(len(candidates)),
             "adaptive_route_override_used": float(route_override_used),
+            "adaptive_route_remaining_points": float(len(state.current_route) if state.current_route else 0),
         }
     )
     for policy in ("belief_horizon", "belief_orienteering", "confirmed_route", "local_exploit"):
@@ -1959,12 +1950,17 @@ def choose_goal(
     hydro: HydroConfig | None = None,
 ) -> GoalDecision:
     if state.current_route:
+        details = dict(state.current_route_details)
+        if "adaptive_selected_policy" in details:
+            details["adaptive_selector_invoked"] = 0.0
+            details["adaptive_route_continuation"] = 1.0
+            details["adaptive_route_remaining_points"] = float(len(state.current_route))
         return GoalDecision(
             state.current_route[0].copy(),
             state.current_route_mode,
             state.current_route_reason,
             1.0,
-            dict(state.current_route_details),
+            details,
         )
     if planner.mode == "oracle_current_physics" and field is not None:
         point = _nearest_alive_debris(field, current, use_initial_positions=False)

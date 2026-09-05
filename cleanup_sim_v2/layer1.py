@@ -218,31 +218,68 @@ def select_nominal_budget(calibration: pd.DataFrame) -> float | None:
 
 
 def adaptive_policy_shares(run_dirs: Iterable[Path]) -> pd.DataFrame:
+    """Separate selector decisions from queued legs; old traces keep unknown counts."""
     rows: list[dict] = []
     for run_dir in run_dirs:
         for events_path in sorted(run_dir.rglob("*_events.csv")):
             events = pd.read_csv(events_path, low_memory=False)
             if "adaptive_selected_policy" not in events.columns:
                 continue
-            policies = events["adaptive_selected_policy"].dropna()
-            if policies.empty:
+            if "event" in events.columns:
+                events = events[events["event"] == "goal_started"].copy()
+            events = events.loc[events["adaptive_selected_policy"].notna()]
+            all_policies = events["adaptive_selected_policy"].dropna()
+            if all_policies.empty:
                 continue
+            selector_flags = pd.to_numeric(
+                events.get("adaptive_selector_invoked", pd.Series(math.nan, index=events.index)), errors="coerce"
+            )
+            continuation_flags = pd.to_numeric(
+                events.get("adaptive_route_continuation", pd.Series(math.nan, index=events.index)), errors="coerce"
+            )
+            # Missing markers cannot be reconstructed from policy labels: a second
+            # leg and a repeated selector choice can carry the same policy name.
+            split_known = bool((
+                selector_flags.isin([0, 1])
+                & continuation_flags.isin([0, 1])
+                & ((selector_flags + continuation_flags) == 1)
+            ).all())
+            selector_invoked = selector_flags == 1
+            route_continuation = continuation_flags == 1
+
+            selector_policies = events.loc[selector_invoked, "adaptive_selected_policy"].dropna()
+            continuation_policies = events.loc[route_continuation, "adaptive_selected_policy"].dropna()
             parts = events_path.name.split("__")
             scenario = parts[0] if len(parts) >= 1 else "unknown"
             mode = parts[1] if len(parts) >= 2 else "unknown"
             seed_part = next((part for part in parts if part.startswith("seed")), "seed")
             seed = int(seed_part.removeprefix("seed").split("_")[0]) if seed_part != "seed" else -1
-            counts = policies.value_counts()
-            total = int(counts.sum())
-            for policy, count in counts.items():
+            selector_counts = selector_policies.value_counts()
+            continuation_counts = continuation_policies.value_counts()
+            all_counts = all_policies.value_counts()
+            selector_total = int(selector_counts.sum())
+            continuation_total = int(continuation_counts.sum())
+            all_total = int(all_counts.sum())
+            policies = {"belief_horizon", "belief_orienteering", "confirmed_route", "local_exploit"}
+            for policy in sorted(policies.union(all_counts.index)):
+                selector_count = int(selector_counts.get(policy, 0))
+                continuation_count = int(continuation_counts.get(policy, 0))
+                all_count = int(all_counts.get(policy, 0))
                 rows.append(
                     {
                         "scenario": scenario,
                         "mode": mode,
                         "seed": seed,
                         "adaptive_selected_policy": str(policy),
-                        "count": int(count),
-                        "share": float(count / max(1, total)),
+                        "share_basis": "selector_invocations" if split_known else "unavailable",
+                        "count": selector_count if split_known else math.nan,
+                        "share": float(selector_count / selector_total) if split_known and selector_total else math.nan,
+                        "selector_invoked_count": selector_count if split_known else math.nan,
+                        "selector_invoked_total": selector_total if split_known else math.nan,
+                        "route_continuation_count": continuation_count if split_known else math.nan,
+                        "route_continuation_total": continuation_total if split_known else math.nan,
+                        "all_goal_leg_count": all_count,
+                        "all_goal_leg_share": float(all_count / max(1, all_total)),
                     }
                 )
     return pd.DataFrame(rows)

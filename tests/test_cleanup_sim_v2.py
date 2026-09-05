@@ -17,6 +17,7 @@ from cleanup_sim_v2.config import (
 )
 from cleanup_sim_v2.io import config_hash
 from cleanup_sim_v2.hydrodynamics import drift_debris
+from cleanup_sim_v2.layer1 import adaptive_policy_shares
 from cleanup_sim_v2.mapping import DensityMap, init_density_map, make_grid
 from cleanup_sim_v2.planners import (
     _OrienteeringBeam,
@@ -32,6 +33,7 @@ from cleanup_sim_v2.planners import (
     make_coverage_route,
     next_active,
     next_belief_orienteering,
+    pop_route_goal_if_arrived,
 )
 from cleanup_sim_v2.run_experiments import ALL_MODES, BASELINE_MODES, build_parser as build_experiment_parser
 from cleanup_sim_v2.sensors import Detection, detect_with_sensor
@@ -1575,6 +1577,98 @@ def test_confirmed_route_effort_is_first_leg_not_whole_route() -> None:
     expected_effort = max(first_leg_m, cfg.platform.collection_approach_radius_m)
     assert np.isclose(decision.details["adaptive_effort_m"], expected_effort)
     assert decision.details["adaptive_route_effort_m"] > decision.details["adaptive_effort_m"] * 1.5
+
+
+def test_adaptive_route_continuation_is_not_logged_as_selector_invocation() -> None:
+    cfg = scenario_config("static_calm", 0, "adaptive_mission")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=150.0, height_m=100.0, depot_x_m=5.0, depot_y_m=50.0, n_debris=1),
+        planner=replace(cfg.planner, adaptive_orienteering_enabled=False, adaptive_local_exploit_enabled=False),
+        grid=replace(cfg.grid, nx=75, ny=50),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    targets = _confirmed_target_queue(
+        cfg,
+        [
+            (20.0, 50.0),
+            (35.0, 52.0),
+            (50.0, 48.0),
+            (65.0, 55.0),
+            (80.0, 46.0),
+            (100.0, 45.0),
+        ],
+    )
+    state = initial_state(cfg.world, cfg.planner)
+    start = np.array(cfg.world.depot, dtype=float)
+
+    first = choose_goal(
+        0.0,
+        start,
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        targets,
+        field=None,
+        hydro=cfg.hydro,
+    )
+
+    assert first.details["adaptive_selected_policy"] == "confirmed_route"
+    assert first.details["adaptive_selector_invoked"] == 1.0
+    assert first.details["adaptive_route_continuation"] == 0.0
+
+    pop_route_goal_if_arrived(state, first.point, cfg.platform.arrival_tolerance_m, targets)
+    second = choose_goal(
+        10.0,
+        first.point,
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        targets,
+        field=None,
+        hydro=cfg.hydro,
+    )
+
+    assert second.details["adaptive_selected_policy"] == "confirmed_route"
+    assert second.details["adaptive_selector_invoked"] == 0.0
+    assert second.details["adaptive_route_continuation"] == 1.0
+    assert second.reason == "adaptive_mission:confirmed_route"
+
+
+def test_adaptive_policy_shares_separates_selector_and_route_continuation(tmp_path) -> None:
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    events_path = run_dir / "static_calm__adaptive_mission__seed7_events.csv"
+    events_path.write_text(
+        "\n".join(
+            [
+                "time_s,event,adaptive_selected_policy,adaptive_selector_invoked,adaptive_route_continuation",
+                "0.0,goal_started,belief_horizon,1,0",
+                "1.0,goal_arrived,,,",
+                "2.0,goal_started,confirmed_route,1,0",
+                "3.0,goal_started,confirmed_route,0,1",
+                "4.0,goal_started,confirmed_route,0,1",
+                "5.0,goal_started,belief_horizon,1,0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    shares = adaptive_policy_shares([run_dir])
+
+    by_policy = shares.set_index("adaptive_selected_policy")
+    assert by_policy.loc["belief_horizon", "count"] == 2
+    assert by_policy.loc["confirmed_route", "count"] == 1
+    assert np.isclose(by_policy.loc["belief_horizon", "share"], 2.0 / 3.0)
+    assert np.isclose(by_policy.loc["confirmed_route", "share"], 1.0 / 3.0)
+    assert by_policy.loc["confirmed_route", "route_continuation_count"] == 2
+    assert by_policy.loc["confirmed_route", "all_goal_leg_count"] == 3
 
 
 def test_adaptive_route_drift_override_min_ratio_is_below_one() -> None:

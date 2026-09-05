@@ -1,0 +1,427 @@
+{
+  "purpose": "Retrospective diagnostic audit; not a confirmatory test or noninferiority claim.",
+  "bootstrap": {
+    "seed": 20260905,
+    "resamples": 20000,
+    "alpha": 0.05,
+    "multiple_comparison_adjusted": false
+  },
+  "analysis_environment_not_original_run_environment": {
+    "python": "3.12.0",
+    "numpy": "2.0.0",
+    "pandas": "2.2.2",
+    "scipy": "1.14.1",
+    "matplotlib": "3.9.0",
+    "pytest": "9.1.1"
+  },
+  "series": [
+    {
+      "series": "trace_before",
+      "directory": "out/cleanup_sim_v2/colleague_adaptive_trace_3000_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22",
+      "rows": 12,
+      "expected_rows": 12,
+      "seeds": [
+        300,
+        301,
+        302
+      ],
+      "stop_reasons": {
+        "path_budget": 12
+      },
+      "manifest": {
+        "runner": "cleanup_sim_v2.run_layer1",
+        "phase": "trace",
+        "git_commit": "0641409",
+        "git_dirty": false,
+        "budgets": [
+          3000.0
+        ],
+        "seeds": 3,
+        "seed_start": 300,
+        "scenarios": [
+          "static_calm",
+          "weak_drift",
+          "strong_drift",
+          "robot_disturbed"
+        ],
+        "modes": [
+          "adaptive_mission"
+        ],
+        "profile": "nominal",
+        "save_runs": true,
+        "checkpoint": true,
+        "resume": false,
+        "validation": true,
+        "fail_on": "major",
+        "standard_budget_tmax_s": {
+          "1200.0": 8000.0,
+          "2400.0": 13200.0,
+          "3600.0": 20000.0,
+          "7200.0": 40000.0
+        }
+      },
+      "validation_issues": [],
+      "sha256": {
+        "summary.csv": "0c5d44d307868f81144abf69d55f62ed9cf3281f8679653e111d21cd20b5476f",
+        "run_manifest.json": "0b44fce98fdb54bc4fdf08069c759d40c283df9ac64c59eaab789f91722529f2",
+        "adaptive_policy_shares.csv": "e54de4ec30cc61cec5e1d30acc7d6baaa8dad9632ed8240cbd49f584929641f7"
+      }
+    },
+    {
+      "series": "baseline_before",
+      "directory": "out/cleanup_sim_v2/colleague_baseline_3000_5seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22",
+      "rows": 160,
+      "expected_rows": 160,
+      "seeds": [
+        300,
+        301,
+        302,
+        303,
+        304
+      ],
+      "stop_reasons": {
+        "path_budget": 140,
+        "done": 20
+      },
+      "manifest": {
+        "runner": "cleanup_sim_v2.run_layer1",
+        "phase": "baseline",
+        "git_commit": "0641409",
+        "git_dirty": false,
+        "budgets": [
+          3000.0
+        ],
+        "seeds": 5,
+        "seed_start": 300,
+        "scenarios": [
+          "static_calm",
+          "weak_drift",
+          "strong_drift",
+          "robot_disturbed"
+        ],
+        "modes": [
+          "lawnmower_collect",
+          "greedy",
+          "confirmed_route",
+          "belief_horizon",
+          "belief_orienteering",
+          "belief_orienteering_depth1",
+          "adaptive_mission",
+          "oracle_current_physics"
+        ],
+        "profile": "nominal",
+        "save_runs": false,
+        "checkpoint": true,
+        "resume": false,
+        "validation": true,
+        "fail_on": "major",
+        "standard_budget_tmax_s": {
+          "1200.0": 8000.0,
+          "2400.0": 13200.0,
+          "3600.0": 20000.0,
+          "7200.0": 40000.0
+        }
+      },
+      "validation_issues": [],
+      "sha256": {
+        "summary.csv": "e5829f74132ba0e7d4834c7c4b686564027c8978688892f33b531eeee204c3b6",
+        "run_manifest.json": "1d192c348e5c10f56e7a3b19ac5f08da5a7344bdaf6aa394b241548defe4db1b"
+      }
+    },
+    {
+      "series": "trace_after",
+      "directory": "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22",
+      "rows": 12,
+      "expected_rows": 12,
+      "seeds": [
+        300,
+        301,
+        302
+      ],
+      "stop_reasons": {
+        "path_budget": 12
+      },
+      "manifest": {
+        "runner": "cleanup_sim_v2.run_layer1",
+        "phase": "trace",
+        "git_commit": "0641409",
+        "git_dirty": true,
+        "budgets": [
+          3000.0
+        ],
+        "seeds": 3,
+        "seed_start": 300,
+        "scenarios": [
+          "static_calm",
+          "weak_drift",
+          "strong_drift",
+          "robot_disturbed"
+        ],
+        "modes": [
+          "adaptive_mission"
+        ],
+        "profile": "nominal",
+        "save_runs": true,
+        "checkpoint": true,
+        "resume": false,
+        "validation": true,
+        "fail_on": "major",
+        "standard_budget_tmax_s": {
+          "1200.0": 8000.0,
+          "2400.0": 13200.0,
+          "3600.0": 20000.0,
+          "7200.0": 40000.0
+        }
+      },
+      "validation_issues": [
+        {
+          "severity": "major",
+          "check": "dirty_git_state",
+          "message": "Rows were produced from a dirty tracked worktree.",
+          "count": 12,
+          "sample": "[{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission\",\"seed\":300,\"collected_ratio\":0.5533333333,\"auc_collected_by_path\":0.2921743306,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission\",\"seed\":301,\"collected_ratio\":0.3333333333,\"auc_collected_by_path\":0.1776067955,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission\",\"seed\":302,\"collected_ratio\":0.3866666667,\"auc_collected_by_path\":0.2431656188,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"weak_drift\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission\",\"seed\":300,\"collected_ratio\":0.9266666667,\"auc_collected_by_path\":0.3459313938,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"weak_drift\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission\",\"seed\":301,\"collected_ratio\":0.5733333333,\"auc_collected_by_path\":0.2659267369,\"stop_reason\":\"path_budget\"}]"
+        }
+      ],
+      "sha256": {
+        "summary.csv": "809a351b0eedc349d9e6e17848f0d08d996235c204e7a4028651cf78c4896072",
+        "run_manifest.json": "3e9aeab3232181ca2bf8e733116ee06d14157afc6298dc973700cc2ad4de8702",
+        "adaptive_policy_shares.csv": "2520b53841e62ca865c20add0a872dadc72a3189c2aebdca36d68c1504e6a990"
+      }
+    },
+    {
+      "series": "ablation_smoke",
+      "directory": "out/cleanup_sim_v2/colleague_adaptive_revision_smoke_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22",
+      "rows": 56,
+      "expected_rows": 56,
+      "seeds": [
+        320,
+        321
+      ],
+      "stop_reasons": {
+        "path_budget": 48,
+        "done": 8
+      },
+      "manifest": {
+        "runner": "cleanup_sim_v2.run_layer1",
+        "phase": "baseline",
+        "git_commit": "0641409",
+        "git_dirty": true,
+        "budgets": [
+          3000.0
+        ],
+        "seeds": 2,
+        "seed_start": 320,
+        "scenarios": [
+          "static_calm",
+          "weak_drift",
+          "strong_drift",
+          "robot_disturbed"
+        ],
+        "modes": [
+          "belief_horizon",
+          "adaptive_mission",
+          "adaptive_mission_no_route",
+          "adaptive_mission_no_orienteering",
+          "adaptive_mission_no_local_exploit",
+          "adaptive_mission_no_hysteresis",
+          "oracle_current_physics"
+        ],
+        "profile": "nominal",
+        "save_runs": false,
+        "checkpoint": true,
+        "resume": false,
+        "validation": true,
+        "fail_on": "major",
+        "standard_budget_tmax_s": {
+          "1200.0": 8000.0,
+          "2400.0": 13200.0,
+          "3600.0": 20000.0,
+          "7200.0": 40000.0
+        }
+      },
+      "validation_issues": [
+        {
+          "severity": "major",
+          "check": "dirty_git_state",
+          "message": "Rows were produced from a dirty tracked worktree.",
+          "count": 56,
+          "sample": "[{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"belief_horizon\",\"seed\":320,\"collected_ratio\":0.46,\"auc_collected_by_path\":0.287385615,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"belief_horizon\",\"seed\":321,\"collected_ratio\":0.46,\"auc_collected_by_path\":0.2276261692,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission\",\"seed\":320,\"collected_ratio\":0.4466666667,\"auc_collected_by_path\":0.261712536,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission\",\"seed\":321,\"collected_ratio\":0.3733333333,\"auc_collected_by_path\":0.1895105016,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"adaptive_mission_no_route\",\"seed\":320,\"collected_ratio\":0.5066666667,\"auc_collected_by_path\":0.2950056048,\"stop_reason\":\"path_budget\"}]"
+        }
+      ],
+      "sha256": {
+        "summary.csv": "b14952d04fd5771bf1d53b2c0dfb9a874b4c08f83bf349aaeff32ac70c96eace",
+        "run_manifest.json": "4a865233be24c93040e7152c9efbd50f7a926d87cc99f866e9c72753a7aeb8c1"
+      }
+    },
+    {
+      "series": "diagnostic_10seed",
+      "directory": "out/cleanup_sim_v2/colleague_adaptive_revision_10seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22",
+      "rows": 280,
+      "expected_rows": 280,
+      "seeds": [
+        330,
+        331,
+        332,
+        333,
+        334,
+        335,
+        336,
+        337,
+        338,
+        339
+      ],
+      "stop_reasons": {
+        "path_budget": 240,
+        "done": 40
+      },
+      "manifest": {
+        "runner": "cleanup_sim_v2.run_layer1",
+        "phase": "baseline",
+        "git_commit": "0641409",
+        "git_dirty": true,
+        "budgets": [
+          3000.0
+        ],
+        "seeds": 10,
+        "seed_start": 330,
+        "scenarios": [
+          "static_calm",
+          "weak_drift",
+          "strong_drift",
+          "robot_disturbed"
+        ],
+        "modes": [
+          "greedy",
+          "confirmed_route",
+          "belief_horizon",
+          "belief_orienteering",
+          "belief_orienteering_depth1",
+          "adaptive_mission",
+          "oracle_current_physics"
+        ],
+        "profile": "nominal",
+        "save_runs": false,
+        "checkpoint": true,
+        "resume": false,
+        "validation": true,
+        "fail_on": "major",
+        "standard_budget_tmax_s": {
+          "1200.0": 8000.0,
+          "2400.0": 13200.0,
+          "3600.0": 20000.0,
+          "7200.0": 40000.0
+        }
+      },
+      "validation_issues": [
+        {
+          "severity": "major",
+          "check": "dirty_git_state",
+          "message": "Rows were produced from a dirty tracked worktree.",
+          "count": 280,
+          "sample": "[{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"greedy\",\"seed\":330,\"collected_ratio\":0.4,\"auc_collected_by_path\":0.2042023876,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"greedy\",\"seed\":331,\"collected_ratio\":0.3533333333,\"auc_collected_by_path\":0.2310393467,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"greedy\",\"seed\":332,\"collected_ratio\":0.3333333333,\"auc_collected_by_path\":0.2049735636,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"greedy\",\"seed\":333,\"collected_ratio\":0.26,\"auc_collected_by_path\":0.0760626113,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":3000.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"greedy\",\"seed\":334,\"collected_ratio\":0.4466666667,\"auc_collected_by_path\":0.2155604818,\"stop_reason\":\"path_budget\"}]"
+        }
+      ],
+      "sha256": {
+        "summary.csv": "9403e04cfbd48d0bf64425cd9a09bbc4841e71a0caa992c8719fd4b172834c0d",
+        "run_manifest.json": "165286b0c22fc1c450800565fd40c1632bc068524f371911ac3d50d987e0e568"
+      }
+    },
+    {
+      "series": "heavy_calibration",
+      "directory": "out/cleanup_sim_v2/layer1_postfix_heavy_2026-08-22/layer1_postfix_budget_calibration_2026-08-22",
+      "rows": 3840,
+      "expected_rows": 3840,
+      "seeds": [
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129
+      ],
+      "stop_reasons": {
+        "path_budget": 3461,
+        "done": 379
+      },
+      "manifest": {
+        "runner": "cleanup_sim_v2.run_layer1",
+        "phase": "calibration",
+        "git_commit": "060cbd6",
+        "git_dirty": false,
+        "budgets": [
+          1200.0,
+          2400.0,
+          3600.0,
+          7200.0
+        ],
+        "seeds": 30,
+        "seed_start": 100,
+        "scenarios": [
+          "static_calm",
+          "weak_drift",
+          "strong_drift",
+          "robot_disturbed"
+        ],
+        "modes": [
+          "lawnmower_collect",
+          "greedy",
+          "confirmed_route",
+          "belief_horizon",
+          "belief_orienteering",
+          "belief_orienteering_depth1",
+          "adaptive_mission",
+          "oracle_current_physics"
+        ],
+        "profile": "nominal",
+        "save_runs": false,
+        "checkpoint": true,
+        "resume": true,
+        "validation": true,
+        "fail_on": "major",
+        "standard_budget_tmax_s": {
+          "1200.0": 8000.0,
+          "2400.0": 13200.0,
+          "3600.0": 20000.0,
+          "7200.0": 40000.0
+        }
+      },
+      "validation_issues": [
+        {
+          "severity": "warning",
+          "check": "near_zero_collection",
+          "message": "Non-oracle rows collected at most one object; inspect before interpretation.",
+          "count": 37,
+          "sample": "[{\"path_budget_m\":1200.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"lawnmower_collect\",\"seed\":103,\"collected_ratio\":0.0066666667,\"auc_collected_by_path\":0.0031491667,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":1200.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"lawnmower_collect\",\"seed\":111,\"collected_ratio\":0.0,\"auc_collected_by_path\":0.0,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":1200.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"lawnmower_collect\",\"seed\":118,\"collected_ratio\":0.0066666667,\"auc_collected_by_path\":0.00066,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":1200.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"lawnmower_collect\",\"seed\":119,\"collected_ratio\":0.0,\"auc_collected_by_path\":0.0,\"stop_reason\":\"path_budget\"},{\"path_budget_m\":1200.0,\"scenario\":\"static_calm\",\"profile\":\"nominal\",\"mode\":\"lawnmower_collect\",\"seed\":121,\"collected_ratio\":0.0,\"auc_collected_by_path\":0.0,\"stop_reason\":\"path_budget\"}]"
+        }
+      ],
+      "sha256": {
+        "summary.csv": "63bc00ce80edfe1e744d8ac8a5b3f2b250cd928875a98e8fea0e029ade023c5d",
+        "run_manifest.json": "aa03ae94d1d2c0b2cf27b02a70219c2d1455e96c64781a173a08c4238ea96454"
+      }
+    }
+  ]
+}

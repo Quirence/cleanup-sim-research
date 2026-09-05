@@ -1,0 +1,41 @@
+{
+  "purpose": "Single-row provenance check; no performance claim.",
+  "source_planner_commit": "7e0afb8",
+  "committed_planner_loaded_in_memory_before_simulation_import": true,
+  "local_physical_summary_equal": true,
+  "local_series_equal": true,
+  "colleague_row": {
+    "config_hash": "0288e2664f58",
+    "collected": 143,
+    "auc_collected_by_path": 0.5883562739,
+    "path_length_m": 3000.1260066857,
+    "sim_time_s": 4762.0
+  },
+  "current_row": {
+    "config_hash": "0288e2664f58",
+    "collected": 128,
+    "auc_collected_by_path": 0.5439908942772081,
+    "path_length_m": 3000.0678079681634,
+    "sim_time_s": 4749.0
+  },
+  "committed_planner_row": {
+    "config_hash": "0288e2664f58",
+    "collected": 128,
+    "auc_collected_by_path": 0.5439908942772081,
+    "path_length_m": 3000.0678079681634,
+    "sim_time_s": 4749.0
+  },
+  "environment": {
+    "python": "3.12.0",
+    "numpy": "2.0.0",
+    "pandas": "2.2.2",
+    "scipy": "1.14.1",
+    "matplotlib": "3.9.0",
+    "pytest": "9.1.1"
+  },
+  "input_sha256": {
+    "strong_drift__adaptive_mission__nominal__seed300_summary.json": "db366300febaa34f26d5c1797e9219e89d937b49dcf7929d44c86bc1c2c26398",
+    "pr_planner_control\\strong_drift__adaptive_mission__nominal__seed300_summary.json": "218e0a1b6c8f09a3c705984a44a7e8849498e85ea12ce687ac304f24a9085977",
+    "strong_drift__adaptive_mission__nominal__seed300_events.csv": "da79ccdce7fa9782291cf039b0135b98d6361c042f8e5d48fc7cf57b8b8350bb"
+  }
+}

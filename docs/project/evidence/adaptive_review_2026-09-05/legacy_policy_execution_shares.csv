@@ -1,0 +1,9 @@
+series,share_basis,scenario,belief_horizon,belief_orienteering,confirmed_route,local_exploit
+trace_before,all_goal_legs_legacy,robot_disturbed,0.9880449409560524,0.0119550590439476,0.0,0.0
+trace_before,all_goal_legs_legacy,static_calm,0.938946543743207,0.010027530882588198,0.008515815085158134,0.042510110289046665
+trace_before,all_goal_legs_legacy,strong_drift,1.0,0.0,0.0,0.0
+trace_before,all_goal_legs_legacy,weak_drift,0.9693057664087767,0.0011494252873563,0.006191950464396266,0.0233528578394706
+trace_after,all_goal_legs_legacy,robot_disturbed,0.48731435392323247,0.011556206066806832,0.49874848762900825,0.002380952380952367
+trace_after,all_goal_legs_legacy,static_calm,0.7073912751598375,0.012216600100452467,0.2253200886296525,0.05507203611005743
+trace_after,all_goal_legs_legacy,strong_drift,0.58761492585022,0.0,0.41238507414978004,0.0
+trace_after,all_goal_legs_legacy,weak_drift,0.5625849603618559,0.008499043632032867,0.4021196482490647,0.0267963477570464

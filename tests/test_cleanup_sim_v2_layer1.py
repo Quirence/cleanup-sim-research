@@ -7,6 +7,7 @@ import pytest
 
 from cleanup_sim_v2.config import scenario_config
 from cleanup_sim_v2.layer1 import (
+    adaptive_policy_shares,
     enrich_summary,
     evaluate_budget_calibration,
     layer1_config,
@@ -14,6 +15,46 @@ from cleanup_sim_v2.layer1 import (
     safety_tmax_s,
     select_nominal_budget,
 )
+
+
+@pytest.mark.parametrize("markers", [False, True])
+def test_adaptive_shares_do_not_infer_decisions_from_unmarked_events(tmp_path, markers) -> None:
+    events = pd.DataFrame({
+        "event": ["goal_started", "goal_started"],
+        "adaptive_selected_policy": ["confirmed_route", "confirmed_route"],
+    })
+    if markers:
+        events["adaptive_selector_invoked"] = [1.0, math.nan]
+        events["adaptive_route_continuation"] = [0.0, math.nan]
+    events.to_csv(tmp_path / "static_calm__adaptive_mission__seed7_events.csv", index=False)
+
+    shares = adaptive_policy_shares([tmp_path])
+
+    assert shares["count"].isna().all()
+    assert shares["share"].isna().all()
+    assert shares["selector_invoked_count"].isna().all()
+    assert shares["route_continuation_count"].isna().all()
+    assert (shares["share_basis"] == "unavailable").all()
+    assert shares.set_index("adaptive_selected_policy").loc["confirmed_route", "all_goal_leg_count"] == 2
+
+
+def test_adaptive_shares_include_zero_policy_counts_in_seed_average(tmp_path) -> None:
+    for seed, policy in enumerate(["belief_horizon", "confirmed_route"]):
+        pd.DataFrame({
+            "event": ["goal_started", "goal_arrived"],
+            "adaptive_selected_policy": [policy, policy],
+            "adaptive_selector_invoked": [1, 1],
+            "adaptive_route_continuation": [0, 0],
+        }).to_csv(tmp_path / f"static_calm__adaptive_mission__seed{seed}_events.csv", index=False)
+
+    shares = adaptive_policy_shares([tmp_path])
+    means = shares.groupby("adaptive_selected_policy")["share"].mean()
+
+    assert means["belief_horizon"] == pytest.approx(0.5)
+    assert means["confirmed_route"] == pytest.approx(0.5)
+    assert means["local_exploit"] == 0.0
+    assert means.sum() == pytest.approx(1.0)
+    assert shares.groupby("seed")["selector_invoked_count"].sum().tolist() == [1, 1]
 
 
 def test_layer1_safety_tmax_uses_protocol_values_for_standard_budgets() -> None:

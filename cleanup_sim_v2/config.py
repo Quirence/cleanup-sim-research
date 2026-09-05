@@ -252,10 +252,9 @@ class PlannerConfig:
     adaptive_local_exploit_max_drift_ratio: float = 2.0
     # Override fires once confirmed_route's unified-utility score reaches this
     # fraction of the best candidate's score under sustained drift with enough
-    # fresh confirmed targets. NOTE: 1.0 makes the override a no-op by
-    # construction (route_score >= best_score means route was already the argmax),
-    # so it must stay below 1.0 for `adaptive_route_drift_override_min_drift_ratio`
-    # to ever change the selection.
+    # fresh confirmed targets. With a positive best score, 1.0 cannot promote
+    # a strictly worse route candidate. The selector also has separate handling
+    # for nonpositive scores and applies this override after hysteresis.
     adaptive_route_drift_override_min_ratio: float = 0.6
     adaptive_route_drift_override_min_drift_ratio: float = 0.9
     greedy_tabu_radius_m: float = 3.0

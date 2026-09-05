@@ -1,0 +1,5 @@
+scenario,mode,seed,adaptive_selected_policy,share_basis,count,share,selector_invoked_count,selector_invoked_total,route_continuation_count,route_continuation_total,all_goal_leg_count,all_goal_leg_share
+strong_drift,adaptive_mission,300,belief_horizon,selector_invocations,134.0,0.9305555555555556,134.0,144.0,0.0,80.0,134,0.5982142857142857
+strong_drift,adaptive_mission,300,belief_orienteering,selector_invocations,0.0,0.0,0.0,144.0,0.0,80.0,0,0.0
+strong_drift,adaptive_mission,300,confirmed_route,selector_invocations,10.0,0.06944444444444445,10.0,144.0,80.0,80.0,90,0.4017857142857143
+strong_drift,adaptive_mission,300,local_exploit,selector_invocations,0.0,0.0,0.0,144.0,0.0,80.0,0,0.0

@@ -1,6 +1,8 @@
 # Рабочая структура проекта
 
-Дата обновления: 2026-08-13
+Дата обновления: 2026-09-05
+
+Начать с [current_state.md](docs/project/current_state.md), затем [снимка контекста](docs/project/project_memory_snapshot_2026-09-05.md) и [ревью PR #4](docs/project/adaptive_mission_revision_review_2026-09-05.md). Последний документ фиксирует результаты коллеги, расхождение воспроизводимости и порядок следующей работы. Исходный `datascience` и рабочая директория `datascience_main_results_20260816` являются разными Git worktree; перед запуском проверить `git status --short --branch`.
 
 ## Главный рабочий путь
 
@@ -36,6 +38,11 @@
 
 9. `out/cleanup_sim_v2/`, `out/cleanup_sim/`
    - только актуальные или диагностически важные результаты симулятора.
+   - `out/` не исключен целиком из Git; добавлять выбранные файлы явно. Исторические CSV не перезаписывать результатами новых версий.
+
+10. `docs/project/evidence/adaptive_review_2026-09-05/`
+    - компактные производные таблицы и реестр входных файлов с SHA-256;
+    - пересчет без симуляций: `python -m scripts.audit_adaptive_evidence --out-dir out/audit/adaptive_evidence`.
 
 ## Текущая документация состояния
 
