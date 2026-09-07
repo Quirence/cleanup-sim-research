@@ -12,6 +12,23 @@ from cleanup_sim_v2.metrics import (
 )
 
 
+def test_auc_stationary_collection_preserves_chronological_vertical_segments() -> None:
+    # Many stop/go samples expose unstable tie ordering on the audited NumPy.
+    x = np.cumsum(np.random.default_rng(0).integers(0, 2, 500)).astype(float)
+    y = np.arange(len(x), dtype=float) / (len(x) - 1)
+    budget = x[-1] + 1.0
+    chronological_area = sum(
+        (x[i + 1] - x[i]) * (y[i + 1] + y[i]) / 2.0 for i in range(len(x) - 1)
+    ) + (budget - x[-1]) * y[-1]
+    assert abs(auc_by_path(x.tolist(), y.tolist(), budget) - chronological_area / budget) < 1e-14
+
+
+def test_auc_stationary_capture_at_budget_does_not_inflate_incoming_leg() -> None:
+    # No collection until arrival at x=2, then collection during a stationary
+    # dwell. The vertical step has zero path area; only later motion adds area.
+    assert auc_by_path([0, 2, 2, 4], [0, 0, 1, 1], 2) == 0.0
+    assert auc_by_path([0, 2, 2, 4], [0, 0, 1, 1], 3) == 1.0 / 3.0
+
 def _tiny_grid() -> Grid:
     x_edges = np.array([0.0, 1.0, 2.0])
     y_edges = np.array([0.0, 1.0, 2.0])

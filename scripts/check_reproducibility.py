@@ -69,8 +69,11 @@ def reference_comparison(summary: dict, directory: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--protocol", type=Path, default=PROTOCOL)
     args = parser.parse_args()
-    protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+    protocol = json.loads(args.protocol.read_text(encoding="utf-8"))
+    if protocol["repeats"] != 2:
+        raise ValueError("This pair comparator requires exactly two repeats.")
     provenance = capture_provenance()
     if provenance["git_dirty"] or provenance["git_commit_full"] == "unknown":
         raise SystemExit("Control requires a clean committed source tree, including the protocol.")
@@ -113,7 +116,7 @@ def main() -> None:
     originals_unchanged = all(file_sha256(REPO_ROOT / path) == digest for path, digest in input_hashes.items())
     passed = originals_unchanged and all(pair["repeat_comparison"]["passed"] for pair in pairs)
     report = {
-        "protocol_sha256": file_sha256(PROTOCOL), "provenance_id": provenance["provenance_id"],
+        "protocol_sha256": file_sha256(args.protocol), "provenance_id": provenance["provenance_id"],
         "git_commit_full": provenance["git_commit_full"], "input_hashes": input_hashes,
         "originals_unchanged": originals_unchanged, "pairs": pairs,
         "current_repeatability_passed": passed, "historical_cause_resolved": False,

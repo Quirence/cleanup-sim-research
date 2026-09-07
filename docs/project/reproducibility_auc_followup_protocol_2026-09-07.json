@@ -1,0 +1,17 @@
+{
+  "protocol_id": "reproducibility-auc-followup-2026-09-07-v1",
+  "purpose": "end-to-end repeatability after correcting chronological AUC integration; no planner or physics changes",
+  "scenario": "strong_drift",
+  "profile": "nominal",
+  "modes": ["adaptive_mission"],
+  "seeds": [301],
+  "repeats": 2,
+  "max_path_m": 3000.0,
+  "tmax_s": 16500.0,
+  "processes": "fresh sequential processes, same executable and inherited environment",
+  "selection_reason": "already inspected seed 301 isolates a historical AUC-only discrepancy; fixed before follow-up execution",
+  "acceptance": "same clean commit, provenance, full config and byte-identical artifacts between repeats; events, series, density, positions and all non-AUC physical summary fields must also match the first control at d92b496",
+  "invalid_run_policy": "retain and report every failure or mismatch, no selective exclusions or original file replacement",
+  "historical_limits": "matching one summary after correction does not recover original source/environment or resolve seed 300 collection mismatch",
+  "final_confirmatory": false
+}

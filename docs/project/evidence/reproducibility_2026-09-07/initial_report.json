@@ -1,0 +1,693 @@
+{
+  "protocol_sha256": "37ee137127f6a56522de674d7c0e72fa06ceabe0f4985d1d7ed2647e6edaf0a2",
+  "provenance_id": "d010cef76793fb21b5d0cde4656c39e69eba49a407d2087d3393c5880e2e1c54",
+  "git_commit_full": "d92b4960a2720f30569fc0f45993ebbf336ea868",
+  "input_hashes": {
+    "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22/summary.csv": "809a351b0eedc349d9e6e17848f0d08d996235c204e7a4028651cf78c4896072",
+    "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22/run_manifest.json": "3e9aeab3232181ca2bf8e733116ee06d14157afc6298dc973700cc2ad4de8702",
+    "out/cleanup_sim_v2/colleague_baseline_3000_5seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22/summary.csv": "e5829f74132ba0e7d4834c7c4b686564027c8978688892f33b531eeee204c3b6",
+    "out/cleanup_sim_v2/colleague_baseline_3000_5seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22/run_manifest.json": "1d192c348e5c10f56e7a3b19ac5f08da5a7344bdaf6aa394b241548defe4db1b"
+  },
+  "originals_unchanged": true,
+  "pairs": [
+    {
+      "mode": "adaptive_mission",
+      "seed": 300,
+      "repeat_comparison": {
+        "passed": true,
+        "same_identity": true,
+        "same_config": true,
+        "clean_sources": true,
+        "captured_at_runner_start": true,
+        "artifacts": {
+          "summary": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "3e9448400757f4d52fb1aa7fd954d78fac7880f691e8cdcbbc163fb221000a6a",
+            "right_sha256": "3e9448400757f4d52fb1aa7fd954d78fac7880f691e8cdcbbc163fb221000a6a"
+          },
+          "config": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "e1e1cd1d3f180ceb778ba0a7040f25dbf44cf30302c1c8c7c4850ef2bdc0cbe2",
+            "right_sha256": "e1e1cd1d3f180ceb778ba0a7040f25dbf44cf30302c1c8c7c4850ef2bdc0cbe2"
+          },
+          "events": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "da79ccdce7fa9782291cf039b0135b98d6361c042f8e5d48fc7cf57b8b8350bb",
+            "right_sha256": "da79ccdce7fa9782291cf039b0135b98d6361c042f8e5d48fc7cf57b8b8350bb"
+          },
+          "series": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "dcaddad0b2b4c13773b7dfe26e31ea1844d91ec14e0a6d4bc3d20a54871bca95",
+            "right_sha256": "dcaddad0b2b4c13773b7dfe26e31ea1844d91ec14e0a6d4bc3d20a54871bca95"
+          },
+          "density": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "2f74db3c94ba350a20466a7a23355741723e0da16a5a03bd3d2ca75de4240e7d",
+            "right_sha256": "2f74db3c94ba350a20466a7a23355741723e0da16a5a03bd3d2ca75de4240e7d"
+          },
+          "positions": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "b362b8552cd160f86eaf16b5f1e09955267f411c215e126672d8a943351b0d11",
+            "right_sha256": "b362b8552cd160f86eaf16b5f1e09955267f411c215e126672d8a943351b0d11"
+          }
+        }
+      },
+      "historical_comparison": {
+        "source": "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22/summary.csv",
+        "source_sha256": "809a351b0eedc349d9e6e17848f0d08d996235c204e7a4028651cf78c4896072",
+        "same_config_hash": true,
+        "original_config_hash": "0288e2664f58",
+        "current_config_hash": "0288e2664f58",
+        "original_git_commit": "0641409",
+        "original_git_dirty": "True",
+        "original_events_available": false,
+        "missing_summary_fields": [],
+        "different_fields": {
+          "collected": {
+            "original": "143",
+            "current": 128
+          },
+          "collected_ratio": {
+            "original": "0.9533333333333334",
+            "current": 0.8533333333333334
+          },
+          "collected_mass_kg": {
+            "original": "47.11340853682492",
+            "current": 41.88432488013426
+          },
+          "collected_mass_per_meter": {
+            "original": "0.015703809917261658",
+            "current": 0.013961126068180767
+          },
+          "path_length_m": {
+            "original": "3000.126006685662",
+            "current": 3000.0678079681634
+          },
+          "sim_time_s": {
+            "original": "4762.0",
+            "current": 4749.0
+          },
+          "goal_count": {
+            "original": "223",
+            "current": 224
+          },
+          "evaluated_goal_count": {
+            "original": "166",
+            "current": 139
+          },
+          "empty_goal_arrivals": {
+            "original": "107",
+            "current": 81
+          },
+          "empty_goal_arrivals_per_km": {
+            "original": "35.665168650101606",
+            "current": 26.999389742079977
+          },
+          "wasted_path_to_empty_goals": {
+            "original": "1861.8557207433128",
+            "current": 1754.6755839669204
+          },
+          "wasted_path_ratio": {
+            "original": "0.6205925073127732",
+            "current": 0.5848786415115391
+          },
+          "wasted_time_to_empty_goals": {
+            "original": "2968.0",
+            "current": 2506.0
+          },
+          "wasted_time_ratio": {
+            "original": "0.6232675346493071",
+            "current": 0.5276900400084228
+          },
+          "goal_success_rate": {
+            "original": "0.35542168674698793",
+            "current": 0.4172661870503597
+          },
+          "route_false_visits": {
+            "original": "31",
+            "current": 59
+          },
+          "capture_contacts": {
+            "original": "2788",
+            "current": 2417
+          },
+          "terminal_capture_attempts": {
+            "original": "188",
+            "current": 163
+          },
+          "successful_captures": {
+            "original": "143",
+            "current": 128
+          },
+          "missed_capture_count": {
+            "original": "45",
+            "current": 35
+          },
+          "missed_captures": {
+            "original": "45",
+            "current": 35
+          },
+          "partial_contact_events": {
+            "original": "1493",
+            "current": 1260
+          },
+          "throughput_limit_events": {
+            "original": "1107",
+            "current": 994
+          },
+          "collection_precision": {
+            "original": "0.7606382978723404",
+            "current": 0.7852760736196319
+          },
+          "info_gain_total": {
+            "original": "0.039017691561071904",
+            "current": -0.028783846992078484
+          },
+          "auc_collected_by_path": {
+            "original": "0.588356273866618",
+            "current": 0.5439908942772081
+          },
+          "collected_ratio_at_1km": {
+            "original": "0.44666666666666666",
+            "current": 0.5333333333333333
+          },
+          "collected_ratio_at_2km": {
+            "original": "0.9333333333333333",
+            "current": 0.8266666666666667
+          },
+          "collected_ratio_at_3km": {
+            "original": "0.9533333333333334",
+            "current": 0.8533333333333334
+          },
+          "map_brier": {
+            "original": "0.0008088727503574077",
+            "current": 0.0020550222618909513
+          },
+          "count_mae": {
+            "original": "0.00939267627608883",
+            "current": 0.013063931610272733
+          },
+          "detection_precision": {
+            "original": "0.9686500818841145",
+            "current": 0.9703136396790664
+          },
+          "false_detection_count": {
+            "original": "402",
+            "current": 407
+          },
+          "true_detection_count": {
+            "original": "12421",
+            "current": 13303
+          },
+          "camera_detection_precision": {
+            "original": "0.9955954897815363",
+            "current": 0.9955019423430791
+          },
+          "camera_detection_recall": {
+            "original": "1.0",
+            "current": 0.9733333333333334
+          },
+          "camera_false_detection_count": {
+            "original": "25",
+            "current": 22
+          },
+          "camera_true_detection_count": {
+            "original": "5651",
+            "current": 4869
+          },
+          "radar_detection_precision": {
+            "original": "0.9472505946551001",
+            "current": 0.9563442567184488
+          },
+          "radar_detection_recall": {
+            "original": "0.9933333333333333",
+            "current": 1.0
+          },
+          "radar_false_detection_count": {
+            "original": "377",
+            "current": 385
+          },
+          "radar_true_detection_count": {
+            "original": "6770",
+            "current": 8434
+          },
+          "near_range_detection_precision": {
+            "original": "0.992715777899945",
+            "current": 0.9930415957940313
+          },
+          "near_range_detection_count": {
+            "original": "7276",
+            "current": 6467
+          },
+          "mid_range_detection_precision": {
+            "original": "0.9678325248914986",
+            "current": 0.9663143989431968
+          },
+          "mid_range_detection_count": {
+            "original": "3917",
+            "current": 4542
+          },
+          "far_range_detection_precision": {
+            "original": "0.8631901840490798",
+            "current": 0.9226212513883747
+          },
+          "far_range_detection_count": {
+            "original": "1630",
+            "current": 2701
+          }
+        },
+        "reference_metrics": {
+          "collected": "143",
+          "auc_collected_by_path": "0.588356273866618",
+          "sim_time_s": "4762.0",
+          "stop_reason": "path_budget"
+        },
+        "current_metrics": {
+          "collected": 128,
+          "auc_collected_by_path": 0.5439908942772081,
+          "sim_time_s": 4749.0,
+          "stop_reason": "path_budget"
+        },
+        "status": "historical_diagnostic_only"
+      }
+    },
+    {
+      "mode": "adaptive_mission",
+      "seed": 301,
+      "repeat_comparison": {
+        "passed": true,
+        "same_identity": true,
+        "same_config": true,
+        "clean_sources": true,
+        "captured_at_runner_start": true,
+        "artifacts": {
+          "summary": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "e05bb6912f894c9fd461cbf938c8abc61c1b4070b3c626e5c834eb6dcd3d5e47",
+            "right_sha256": "e05bb6912f894c9fd461cbf938c8abc61c1b4070b3c626e5c834eb6dcd3d5e47"
+          },
+          "config": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "d201b73f1dc0df7e6b39241d852eca49b0c8f4445fada4bd7924e600b1e12ff8",
+            "right_sha256": "d201b73f1dc0df7e6b39241d852eca49b0c8f4445fada4bd7924e600b1e12ff8"
+          },
+          "events": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "ab6be45d1872c61b8d6e6ab56149c54861b506ad3e1fc932dd1275c05482d94a",
+            "right_sha256": "ab6be45d1872c61b8d6e6ab56149c54861b506ad3e1fc932dd1275c05482d94a"
+          },
+          "series": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "dcb853e1cee29f724c151fc0f937764c6f68ad655c6302aee09f8a89e06bdefc",
+            "right_sha256": "dcb853e1cee29f724c151fc0f937764c6f68ad655c6302aee09f8a89e06bdefc"
+          },
+          "density": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "944e0628e09b4ac531f8d89bcf48f3f2bb4d5254af2d03b35682e3523e3c4227",
+            "right_sha256": "944e0628e09b4ac531f8d89bcf48f3f2bb4d5254af2d03b35682e3523e3c4227"
+          },
+          "positions": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "71345d530ec2843ca1a934f8f590923dc982c5b63150b168a3ad5d04128f60f5",
+            "right_sha256": "71345d530ec2843ca1a934f8f590923dc982c5b63150b168a3ad5d04128f60f5"
+          }
+        }
+      },
+      "historical_comparison": {
+        "source": "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22/summary.csv",
+        "source_sha256": "809a351b0eedc349d9e6e17848f0d08d996235c204e7a4028651cf78c4896072",
+        "same_config_hash": true,
+        "original_config_hash": "96e377b50ce9",
+        "current_config_hash": "96e377b50ce9",
+        "original_git_commit": "0641409",
+        "original_git_dirty": "True",
+        "original_events_available": false,
+        "missing_summary_fields": [],
+        "different_fields": {
+          "auc_collected_by_path": {
+            "original": "0.44364986599167194",
+            "current": 0.4436499914556133
+          }
+        },
+        "reference_metrics": {
+          "collected": "122",
+          "auc_collected_by_path": "0.44364986599167194",
+          "sim_time_s": "4887.0",
+          "stop_reason": "path_budget"
+        },
+        "current_metrics": {
+          "collected": 122,
+          "auc_collected_by_path": 0.4436499914556133,
+          "sim_time_s": 4887.0,
+          "stop_reason": "path_budget"
+        },
+        "status": "historical_diagnostic_only"
+      }
+    },
+    {
+      "mode": "belief_horizon",
+      "seed": 300,
+      "repeat_comparison": {
+        "passed": true,
+        "same_identity": true,
+        "same_config": true,
+        "clean_sources": true,
+        "captured_at_runner_start": true,
+        "artifacts": {
+          "summary": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "f677dc9e5896c9b24656d73a949582db5a6249f2b36ec364c8c2a2429e0ca7f2",
+            "right_sha256": "f677dc9e5896c9b24656d73a949582db5a6249f2b36ec364c8c2a2429e0ca7f2"
+          },
+          "config": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "10a9e975db2245731f2b382e8fb55fa5ad7063bb33a507d93a04eb725d4d88ec",
+            "right_sha256": "10a9e975db2245731f2b382e8fb55fa5ad7063bb33a507d93a04eb725d4d88ec"
+          },
+          "events": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "c06486eb56ef32eaad38a68b8c8ad77609055c0a51ee220093252a9ef1d2e159",
+            "right_sha256": "c06486eb56ef32eaad38a68b8c8ad77609055c0a51ee220093252a9ef1d2e159"
+          },
+          "series": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "b8cec709e1eb87145052cede4683e31b28f0c11fccfe97b81ac71a582cbfaf59",
+            "right_sha256": "b8cec709e1eb87145052cede4683e31b28f0c11fccfe97b81ac71a582cbfaf59"
+          },
+          "density": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "4324f96d3a912877135753cf115ac783657bdf84c3643aa0c9bace75ccf73efd",
+            "right_sha256": "4324f96d3a912877135753cf115ac783657bdf84c3643aa0c9bace75ccf73efd"
+          },
+          "positions": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "4ece844dde7670eb825168092b03d3e403076dbe03e8b3a2b03dd2a915ff94a9",
+            "right_sha256": "4ece844dde7670eb825168092b03d3e403076dbe03e8b3a2b03dd2a915ff94a9"
+          }
+        }
+      },
+      "historical_comparison": {
+        "source": "out/cleanup_sim_v2/colleague_baseline_3000_5seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22/summary.csv",
+        "source_sha256": "e5829f74132ba0e7d4834c7c4b686564027c8978688892f33b531eeee204c3b6",
+        "same_config_hash": false,
+        "original_config_hash": "8e8944d2be63",
+        "current_config_hash": "0a58a9714d2b",
+        "original_git_commit": "0641409",
+        "original_git_dirty": "False",
+        "original_events_available": false,
+        "missing_summary_fields": [],
+        "different_fields": {
+          "collected": {
+            "original": "138",
+            "current": 134
+          },
+          "collected_ratio": {
+            "original": "0.92",
+            "current": 0.8933333333333333
+          },
+          "collected_mass_kg": {
+            "original": "45.90100289800161",
+            "current": 44.14719705122566
+          },
+          "collected_mass_per_meter": {
+            "original": "0.015299179815667946",
+            "current": 0.01471483131391292
+          },
+          "path_length_m": {
+            "original": "3000.2263814818507",
+            "current": 3000.183699658476
+          },
+          "sim_time_s": {
+            "original": "5198.0",
+            "current": 5292.0
+          },
+          "goal_count": {
+            "original": "247",
+            "current": 238
+          },
+          "evaluated_goal_count": {
+            "original": "144",
+            "current": 112
+          },
+          "empty_goal_arrivals": {
+            "original": "90",
+            "current": 70
+          },
+          "empty_goal_arrivals_per_km": {
+            "original": "29.997736355997187",
+            "current": 23.331904645694994
+          },
+          "wasted_path_to_empty_goals": {
+            "original": "1819.260812884983",
+            "current": 1687.3456852966842
+          },
+          "wasted_path_ratio": {
+            "original": "0.6063745136413428",
+            "current": 0.5624141233381016
+          },
+          "wasted_time_to_empty_goals": {
+            "original": "2873.0",
+            "current": 2662.0
+          },
+          "wasted_time_ratio": {
+            "original": "0.5527125817622163",
+            "current": 0.5030234315948602
+          },
+          "capture_contacts": {
+            "original": "2222",
+            "current": 2501
+          },
+          "terminal_capture_attempts": {
+            "original": "173",
+            "current": 189
+          },
+          "successful_captures": {
+            "original": "138",
+            "current": 134
+          },
+          "missed_capture_count": {
+            "original": "35",
+            "current": 55
+          },
+          "missed_captures": {
+            "original": "35",
+            "current": 55
+          },
+          "partial_contact_events": {
+            "original": "1234",
+            "current": 1359
+          },
+          "throughput_limit_events": {
+            "original": "815",
+            "current": 953
+          },
+          "collection_precision": {
+            "original": "0.7976878612716763",
+            "current": 0.708994708994709
+          },
+          "info_gain_total": {
+            "original": "0.02244833439929359",
+            "current": 0.005824425172600935
+          },
+          "auc_collected_by_path": {
+            "original": "0.5640890592284596",
+            "current": 0.6760496171408612
+          },
+          "collected_ratio_at_2km": {
+            "original": "0.7066666666666667",
+            "current": 0.8933333333333333
+          },
+          "collected_ratio_at_3km": {
+            "original": "0.92",
+            "current": 0.8933333333333333
+          },
+          "map_brier": {
+            "original": "0.0016908698085003383",
+            "current": 0.001419950329216725
+          },
+          "count_mae": {
+            "original": "0.01828581582281039",
+            "current": 0.007846286640514665
+          },
+          "detection_precision": {
+            "original": "0.9623025039268225",
+            "current": 0.9706435577052264
+          },
+          "false_detection_count": {
+            "original": "408",
+            "current": 437
+          },
+          "true_detection_count": {
+            "original": "10415",
+            "current": 14449
+          },
+          "camera_detection_precision": {
+            "original": "0.9946392673665401",
+            "current": 0.9939824945295405
+          },
+          "camera_detection_recall": {
+            "original": "0.9933333333333333",
+            "current": 0.9866666666666667
+          },
+          "camera_false_detection_count": {
+            "original": "24",
+            "current": 33
+          },
+          "camera_true_detection_count": {
+            "original": "4453",
+            "current": 5451
+          },
+          "radar_detection_precision": {
+            "original": "0.939489442168295",
+            "current": 0.9570304190597745
+          },
+          "radar_false_detection_count": {
+            "original": "384",
+            "current": 404
+          },
+          "radar_true_detection_count": {
+            "original": "5962",
+            "current": 8998
+          },
+          "near_range_detection_precision": {
+            "original": "0.9907031778228533",
+            "current": 0.9921213889699445
+          },
+          "near_range_detection_count": {
+            "original": "5916",
+            "current": 6854
+          },
+          "mid_range_detection_precision": {
+            "original": "0.9608079589990955",
+            "current": 0.9700443786982249
+          },
+          "mid_range_detection_count": {
+            "original": "3317",
+            "current": 5408
+          },
+          "far_range_detection_precision": {
+            "original": "0.859748427672956",
+            "current": 0.9157774390243902
+          },
+          "far_range_detection_count": {
+            "original": "1590",
+            "current": 2624
+          }
+        },
+        "reference_metrics": {
+          "collected": "138",
+          "auc_collected_by_path": "0.5640890592284596",
+          "sim_time_s": "5198.0",
+          "stop_reason": "path_budget"
+        },
+        "current_metrics": {
+          "collected": 134,
+          "auc_collected_by_path": 0.6760496171408612,
+          "sim_time_s": 5292.0,
+          "stop_reason": "path_budget"
+        },
+        "status": "historical_diagnostic_only"
+      }
+    },
+    {
+      "mode": "belief_horizon",
+      "seed": 301,
+      "repeat_comparison": {
+        "passed": true,
+        "same_identity": true,
+        "same_config": true,
+        "clean_sources": true,
+        "captured_at_runner_start": true,
+        "artifacts": {
+          "summary": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "3b56214b4b7c0b071ef18d7696e4afea6f96b144d14a80c1704ef84da0bd5724",
+            "right_sha256": "3b56214b4b7c0b071ef18d7696e4afea6f96b144d14a80c1704ef84da0bd5724"
+          },
+          "config": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "ffd6bfafec7f27ff4cee31ef1b7888048141490eb5207d7288c963e3f4eafa83",
+            "right_sha256": "ffd6bfafec7f27ff4cee31ef1b7888048141490eb5207d7288c963e3f4eafa83"
+          },
+          "events": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "cceea4fe2893bfa51570bb877af7c3a0e75b37fa18b86058b91a2e39457a88fa",
+            "right_sha256": "cceea4fe2893bfa51570bb877af7c3a0e75b37fa18b86058b91a2e39457a88fa"
+          },
+          "series": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "6fd0e280046f7fdc238000a85b7bc5c8d3afa4e888f40dff2ac95aac470e2bad",
+            "right_sha256": "6fd0e280046f7fdc238000a85b7bc5c8d3afa4e888f40dff2ac95aac470e2bad"
+          },
+          "density": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "698e647d608bfcf48a851a9546fc7b7c4a8a137207dded3ce79097d8ada396af",
+            "right_sha256": "698e647d608bfcf48a851a9546fc7b7c4a8a137207dded3ce79097d8ada396af"
+          },
+          "positions": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "ad37aecf089e917615849c8e3419f725dde47bff3171c16de5893d06016ee754",
+            "right_sha256": "ad37aecf089e917615849c8e3419f725dde47bff3171c16de5893d06016ee754"
+          }
+        }
+      },
+      "historical_comparison": {
+        "source": "out/cleanup_sim_v2/colleague_baseline_3000_5seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22/summary.csv",
+        "source_sha256": "e5829f74132ba0e7d4834c7c4b686564027c8978688892f33b531eeee204c3b6",
+        "same_config_hash": false,
+        "original_config_hash": "6b8cfc7fe64e",
+        "current_config_hash": "f7b67a4b6da1",
+        "original_git_commit": "0641409",
+        "original_git_dirty": "False",
+        "original_events_available": false,
+        "missing_summary_fields": [],
+        "different_fields": {
+          "auc_collected_by_path": {
+            "original": "0.47905975651497096",
+            "current": 0.47905723295730446
+          }
+        },
+        "reference_metrics": {
+          "collected": "115",
+          "auc_collected_by_path": "0.47905975651497096",
+          "sim_time_s": "5784.0",
+          "stop_reason": "path_budget"
+        },
+        "current_metrics": {
+          "collected": 115,
+          "auc_collected_by_path": 0.47905723295730446,
+          "sim_time_s": 5784.0,
+          "stop_reason": "path_budget"
+        },
+        "status": "historical_diagnostic_only"
+      }
+    }
+  ],
+  "current_repeatability_passed": true,
+  "historical_cause_resolved": false,
+  "final_confirmatory_ready": false
+}

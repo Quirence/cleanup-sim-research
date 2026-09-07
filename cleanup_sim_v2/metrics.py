@@ -36,7 +36,9 @@ def auc_by_path(path_m: list[float], ratios: list[float], budget_m: float) -> fl
         return 0.0
     x = np.asarray(path_m, dtype=float)
     y = np.asarray(ratios, dtype=float)
-    order = np.argsort(x)
+    # Collection can increase while the robot is stationary. Preserve the
+    # chronological vertical segment at each repeated path coordinate.
+    order = np.argsort(x, kind="stable")
     x = x[order]
     y = y[order]
     if x[0] > 0.0:
@@ -46,10 +48,14 @@ def auc_by_path(path_m: list[float], ratios: list[float], budget_m: float) -> fl
         x = np.append(x, budget_m)
         y = np.append(y, y[-1])
     else:
+        # Keep all samples exactly on the boundary: replacing them with the
+        # last value would charge stationary collection to the incoming leg.
         y_at_budget = np.interp(budget_m, x, y)
-        keep = x < budget_m
-        x = np.append(x[keep], budget_m)
-        y = np.append(y[keep], y_at_budget)
+        keep = x <= budget_m
+        x, y = x[keep], y[keep]
+        if not len(x) or x[-1] < budget_m:
+            x = np.append(x, budget_m)
+            y = np.append(y, y_at_budget)
     return float(np.trapezoid(y, x) / max(1e-9, budget_m))
 
 
