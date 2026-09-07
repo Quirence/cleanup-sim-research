@@ -471,7 +471,7 @@ def test_belief_orienteering_ablation_modes_change_exact_component() -> None:
 def test_belief_horizon_efficiency_ablation_changes_score_for_same_candidate() -> None:
     """belief_efficiency_score switches the benefit/effort normalization used in the score
     formula. For an identical candidate this must change score_total even though both configs
-    pick the same point — mirrors test_hybrid.py's test_active_no_distance_removes_travel_penalty,
+    pick the same point, so the test isolates the travel-penalty term,
     which compares a scoring function's output before/after an ablation rather than only the
     resulting dataclass field."""
 

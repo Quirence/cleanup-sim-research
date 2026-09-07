@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cleanup-sim-research"
 version = "0.1.0"
-description = "2D simulator for probabilistic floating-debris mapping and hybrid USV route planning."
+description = "2D simulator for mission-regime analysis of floating-debris search and collection by a USV."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

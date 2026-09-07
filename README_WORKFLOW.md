@@ -1,8 +1,8 @@
 # Рабочая структура проекта
 
-Дата обновления: 2026-09-05
+Дата обновления: 2026-09-07
 
-Начать с [current_state.md](docs/project/current_state.md), затем [снимка контекста](docs/project/project_memory_snapshot_2026-09-05.md) и [ревью PR #4](docs/project/adaptive_mission_revision_review_2026-09-05.md). Последний документ фиксирует результаты коллеги, расхождение воспроизводимости и порядок следующей работы. Исходный `datascience` и рабочая директория `datascience_main_results_20260816` являются разными Git worktree; перед запуском проверить `git status --short --branch`.
+Начать с [current_state.md](docs/project/current_state.md), затем прочитать [единственный действующий план](docs/project/next_research_plan.md). Датированные отчеты фиксируют доказательства и историю версий, но не заменяют актуальный план. Работать от обновленной ветки `main`; перед запуском проверить `git status --short --branch`.
 
 ## Главный рабочий путь
 
@@ -34,7 +34,8 @@
    - `cleanup_sim/` - legacy-версия (occupancy grid, `hybrid`/`graph_mst`/`hybrid_mst`), не для финальных результатов статьи.
 
 8. `tests/`
-   - тесты для `cleanup_sim_v2` и `cleanup_sim`.
+   - активные тесты только для `cleanup_sim_v2`;
+   - тесты legacy-симулятора удалены из `main` и доступны в истории Git.
 
 9. `out/cleanup_sim_v2/`, `out/cleanup_sim/`
    - только актуальные или диагностически важные результаты симулятора.
@@ -49,6 +50,10 @@
 Главная сводка проекта:
 
 `docs/project/current_state.md`
+
+Единственный действующий план:
+
+`docs/project/next_research_plan.md`
 
 Статус симулятора v2.1 и что закрыто перед режимным анализом:
 

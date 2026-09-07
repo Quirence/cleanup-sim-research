@@ -1,9 +1,8 @@
 # Project Context
 
 Start with `docs/project/current_state.md`, then read
-`docs/project/project_memory_snapshot_2026-09-05.md` and
-`docs/project/adaptive_mission_revision_review_2026-09-05.md`.
-These are the current handoff documents; dated older reports preserve history.
+`docs/project/next_research_plan.md`. These are the two canonical handoff
+documents. Dated reports preserve evidence and history but are not active plans.
 
 ## Research Direction
 
@@ -21,8 +20,8 @@ These are the current handoff documents; dated older reports preserve history.
 
 ## Workflow
 
-- Inspect the current branch and local diff before editing. Several worktrees
-  exist; the directory called `datascience` may not contain the latest work.
+- Inspect the current branch and local diff before editing. Use `main` after the
+  2026-09-07 consolidation; do not resume work from an older worktree.
 - Preserve collaborator commits and original experiment files. `out/` is not
   globally ignored: stage individual evidence files, never all generated output.
 - Record implementation changes, evidence, limitations, and next steps in the
@@ -34,3 +33,5 @@ These are the current handoff documents; dated older reports preserve history.
 - The colleague's post-change CSV records a dirty source tree; a local control
   did not reproduce one row. Resolve provenance/environment before using those
   data for final claims. Do not overwrite the original CSV to match a rerun.
+- The active test suite covers only `cleanup_sim_v2`. Legacy v1 tests are kept
+  in Git history and in branch `archive/belief-hypotheses-20260813`.
