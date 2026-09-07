@@ -15,6 +15,7 @@ env/
 
 # Local generated outputs
 _delete_later/
+out/
 
 # Source PDFs and private/local materials
 Материалы/

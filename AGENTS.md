@@ -22,8 +22,9 @@ documents. Dated reports preserve evidence and history but are not active plans.
 
 - Inspect the current branch and local diff before editing. Use `main` after the
   2026-09-07 consolidation; do not resume work from an older worktree.
-- Preserve collaborator commits and original experiment files. `out/` is not
-  globally ignored: stage individual evidence files, never all generated output.
+- Preserve collaborator commits and original experiment files. New `out/`
+  content is ignored by default. Put durable evidence in
+  `docs/project/evidence/`, or force-add only an explicitly reviewed result set.
 - Record implementation changes, evidence, limitations, and next steps in the
   handoff documents. Run focused tests and `python -m pytest` for shared changes.
 - To rebuild the review tables without running simulations:
