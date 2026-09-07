@@ -1,0 +1,91 @@
+{
+  "protocol_sha256": "1b0058761c93579bbf1ebb99ba3fc9c7677d0deea1a66b6ca9ec0d81de434e3b",
+  "provenance_id": "9610cb3bff39fc268afd20796e19b804831749227264b196c315ea0b22d33512",
+  "git_commit_full": "06fc57e40874ee84aaec0db24e67de0785a3b75c",
+  "input_hashes": {
+    "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22/summary.csv": "809a351b0eedc349d9e6e17848f0d08d996235c204e7a4028651cf78c4896072",
+    "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22/run_manifest.json": "3e9aeab3232181ca2bf8e733116ee06d14157afc6298dc973700cc2ad4de8702",
+    "out/cleanup_sim_v2/colleague_baseline_3000_5seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22/summary.csv": "e5829f74132ba0e7d4834c7c4b686564027c8978688892f33b531eeee204c3b6",
+    "out/cleanup_sim_v2/colleague_baseline_3000_5seed_2026-08-29/layer1_postfix_path_budget_baseline_2026-08-22/run_manifest.json": "1d192c348e5c10f56e7a3b19ac5f08da5a7344bdaf6aa394b241548defe4db1b"
+  },
+  "originals_unchanged": true,
+  "pairs": [
+    {
+      "mode": "adaptive_mission",
+      "seed": 301,
+      "repeat_comparison": {
+        "passed": true,
+        "same_identity": true,
+        "same_config": true,
+        "clean_sources": true,
+        "captured_at_runner_start": true,
+        "artifacts": {
+          "summary": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "d2568df01927e9c94ee44b82b9842adffc6f9a94b42f2d9f3d17953a0411af2f",
+            "right_sha256": "d2568df01927e9c94ee44b82b9842adffc6f9a94b42f2d9f3d17953a0411af2f"
+          },
+          "config": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "d201b73f1dc0df7e6b39241d852eca49b0c8f4445fada4bd7924e600b1e12ff8",
+            "right_sha256": "d201b73f1dc0df7e6b39241d852eca49b0c8f4445fada4bd7924e600b1e12ff8"
+          },
+          "events": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "ab6be45d1872c61b8d6e6ab56149c54861b506ad3e1fc932dd1275c05482d94a",
+            "right_sha256": "ab6be45d1872c61b8d6e6ab56149c54861b506ad3e1fc932dd1275c05482d94a"
+          },
+          "series": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "dcb853e1cee29f724c151fc0f937764c6f68ad655c6302aee09f8a89e06bdefc",
+            "right_sha256": "dcb853e1cee29f724c151fc0f937764c6f68ad655c6302aee09f8a89e06bdefc"
+          },
+          "density": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "944e0628e09b4ac531f8d89bcf48f3f2bb4d5254af2d03b35682e3523e3c4227",
+            "right_sha256": "944e0628e09b4ac531f8d89bcf48f3f2bb4d5254af2d03b35682e3523e3c4227"
+          },
+          "positions": {
+            "exact": true,
+            "integrity_ok": true,
+            "left_sha256": "71345d530ec2843ca1a934f8f590923dc982c5b63150b168a3ad5d04128f60f5",
+            "right_sha256": "71345d530ec2843ca1a934f8f590923dc982c5b63150b168a3ad5d04128f60f5"
+          }
+        }
+      },
+      "historical_comparison": {
+        "source": "out/cleanup_sim_v2/colleague_adaptive_trace_3000_AFTERFIX_2026-08-29/layer1_postfix_adaptive_trace_2026-08-22/summary.csv",
+        "source_sha256": "809a351b0eedc349d9e6e17848f0d08d996235c204e7a4028651cf78c4896072",
+        "same_config_hash": true,
+        "original_config_hash": "96e377b50ce9",
+        "current_config_hash": "96e377b50ce9",
+        "original_git_commit": "0641409",
+        "original_git_dirty": "True",
+        "original_events_available": false,
+        "missing_summary_fields": [],
+        "different_fields": {},
+        "reference_metrics": {
+          "collected": "122",
+          "auc_collected_by_path": "0.44364986599167194",
+          "sim_time_s": "4887.0",
+          "stop_reason": "path_budget"
+        },
+        "current_metrics": {
+          "collected": 122,
+          "auc_collected_by_path": 0.44364986599167167,
+          "sim_time_s": 4887.0,
+          "stop_reason": "path_budget"
+        },
+        "status": "historical_diagnostic_only"
+      }
+    }
+  ],
+  "current_repeatability_passed": true,
+  "historical_cause_resolved": false,
+  "final_confirmatory_ready": false
+}

@@ -1,0 +1,87 @@
+{
+  "metric_source_sha256": "4be1f576ecbfd81352594dfb222a62d5863b46b7a3a62c919c52af4e450cfeb3",
+  "audit_source_sha256": "2e8ed9768b0b25a170ec5b10b4ea2e87b36b26b59c1237dc4da5d160630a91b8",
+  "rows": [
+    {
+      "mode": "adaptive_mission",
+      "seed": 300,
+      "series_sha256": "dcaddad0b2b4c13773b7dfe26e31ea1844d91ec14e0a6d4bc3d20a54871bca95",
+      "series_integrity_ok": true,
+      "duplicate_path_samples": 769,
+      "stationary_collection_increments": 18,
+      "recorded_auc": 0.5439908942772081,
+      "legacy_quicksort_auc": 0.5439908942772081,
+      "legacy_stable_auc": 0.5439920136874242,
+      "legacy_heapsort_auc": 0.5439888666376183,
+      "corrected_auc": 0.5439920136874242
+    },
+    {
+      "mode": "adaptive_mission",
+      "seed": 301,
+      "series_sha256": "dcb853e1cee29f724c151fc0f937764c6f68ad655c6302aee09f8a89e06bdefc",
+      "series_integrity_ok": true,
+      "duplicate_path_samples": 825,
+      "stationary_collection_increments": 10,
+      "recorded_auc": 0.4436499914556133,
+      "legacy_quicksort_auc": 0.4436499914556133,
+      "legacy_stable_auc": 0.44364986599167167,
+      "legacy_heapsort_auc": 0.4436472257704965,
+      "corrected_auc": 0.44364986599167167
+    },
+    {
+      "mode": "belief_horizon",
+      "seed": 300,
+      "series_sha256": "b8cec709e1eb87145052cede4683e31b28f0c11fccfe97b81ac71a582cbfaf59",
+      "series_integrity_ok": true,
+      "duplicate_path_samples": 799,
+      "stationary_collection_increments": 24,
+      "recorded_auc": 0.6760496171408612,
+      "legacy_quicksort_auc": 0.6760496171408612,
+      "legacy_stable_auc": 0.6760528321380065,
+      "legacy_heapsort_auc": 0.6760514420869109,
+      "corrected_auc": 0.6760528321380065
+    },
+    {
+      "mode": "belief_horizon",
+      "seed": 301,
+      "series_sha256": "6fd0e280046f7fdc238000a85b7bc5c8d3afa4e888f40dff2ac95aac470e2bad",
+      "series_integrity_ok": true,
+      "duplicate_path_samples": 1223,
+      "stationary_collection_increments": 18,
+      "recorded_auc": 0.47905723295730446,
+      "legacy_quicksort_auc": 0.47905723295730446,
+      "legacy_stable_auc": 0.47905975651497107,
+      "legacy_heapsort_auc": 0.47905696882098703,
+      "corrected_auc": 0.47905975651497107
+    }
+  ],
+  "cross_version": [
+    {
+      "run": "repeat1/strong_drift__adaptive_mission__nominal__seed301_manifest.json",
+      "exact_artifacts": {
+        "config": true,
+        "events": true,
+        "series": true,
+        "density": true,
+        "positions": true
+      },
+      "different_non_auc_fields": [],
+      "new_auc_matches_reanalysis_exactly": true
+    },
+    {
+      "run": "repeat2/strong_drift__adaptive_mission__nominal__seed301_manifest.json",
+      "exact_artifacts": {
+        "config": true,
+        "events": true,
+        "series": true,
+        "density": true,
+        "positions": true
+      },
+      "different_non_auc_fields": [],
+      "new_auc_matches_reanalysis_exactly": true
+    }
+  ],
+  "validation_passed": true,
+  "historical_cause_resolved": false,
+  "interpretation": "tie ordering changes AUC on identical saved trajectories; does not explain seed 300 collection discrepancy"
+}
