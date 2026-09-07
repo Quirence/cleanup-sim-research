@@ -41,6 +41,9 @@ def test_run_once_main_writes_a_summary_with_reproducibility_fields(tmp_path: Pa
     assert summary["git_commit"] != "unknown"
     assert isinstance(summary["git_dirty"], bool)
     assert "config_hash" in summary
+    manifest = json.loads((tmp_path / "static_calm__greedy__nominal__seed0_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["provenance"]["provenance_id"] == summary["provenance_id"]
+    assert manifest["provenance_capture"] == "runner_start"
 
 
 def test_run_experiments_main_writes_summary_aggregate_and_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,6 +88,7 @@ def test_run_experiments_main_writes_summary_aggregate_and_manifest(tmp_path: Pa
     assert manifest["seed_start"] == 5
     assert manifest["scenarios"] == ["static_calm"]
     assert manifest["git_commit"] != "unknown"
+    assert set(summary_df["provenance_id"]) == {manifest["provenance"]["provenance_id"]}
 
 
 def test_run_experiments_writes_paired_comparisons_for_adaptive_mission(

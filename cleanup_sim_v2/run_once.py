@@ -9,6 +9,7 @@ from .config import ParameterProfile, PlannerMode, ScenarioName, scenario_config
 from .io import config_hash, git_commit, git_dirty, save_run
 from .run_experiments import ALL_MODES
 from .simulation import run_simulation
+from .provenance import assert_provenance_unchanged, capture_provenance, summary_provenance
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,6 +45,7 @@ def main() -> None:
                 tmax_s=cfg.platform.tmax_s if args.tmax_s is None else args.tmax_s,
             ),
         )
+    provenance = capture_provenance()
     result = run_simulation(cfg)
     result.summary.update(
         {
@@ -51,10 +53,12 @@ def main() -> None:
             "git_commit": git_commit(),
             "git_dirty": git_dirty(),
             "runner": "run_once",
+            **summary_provenance(provenance),
         }
     )
     prefix = f"{args.scenario}__{args.mode}__{args.profile}__seed{args.seed}"
-    paths = save_run(result, args.out_dir, prefix)
+    paths = save_run(result, args.out_dir, prefix, provenance=provenance)
+    assert_provenance_unchanged(provenance)
     print(result.summary)
     print(f"saved: {paths['summary']}")
 

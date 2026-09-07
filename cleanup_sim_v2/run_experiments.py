@@ -12,6 +12,10 @@ from cleanup_sim.statistics import paired_comparison_table
 from .config import scenario_config
 from .io import config_hash, git_commit, git_dirty, save_run
 from .simulation import run_simulation
+from .provenance import (
+    assert_provenance_unchanged, capture_provenance, summary_provenance,
+    validate_resume_configs, validate_resume_provenance,
+)
 
 
 DEFAULT_SCENARIOS = ["static_calm", "weak_drift", "strong_drift", "robot_disturbed"]
@@ -86,39 +90,49 @@ def main() -> None:
         for row in summaries:
             completed_keys.add((str(row["scenario"]), str(row["profile"]), str(row["mode"]), int(row["seed"])))
     modes = BASELINE_MODES if args.baseline_only else args.modes
+    provenance = capture_provenance()
+    validate_resume_provenance(summaries, provenance)
+    configs = {}
+    for scenario in args.scenarios:
+        for mode in modes:
+            for seed in range(args.seed_start, args.seed_start + args.seeds):
+                cfg = scenario_config(scenario, seed, mode, args.profile)  # type: ignore[arg-type]
+                if args.max_path_m is not None or args.tmax_s is not None:
+                    cfg = replace(cfg, platform=replace(
+                        cfg.platform,
+                        max_path_m=cfg.platform.max_path_m if args.max_path_m is None else args.max_path_m,
+                        tmax_s=cfg.platform.tmax_s if args.tmax_s is None else args.tmax_s,
+                    ))
+                configs[(scenario, args.profile, mode, seed)] = cfg
+    validate_resume_configs(
+        summaries, {key: config_hash(cfg.to_dict()) for key, cfg in configs.items()},
+        ("scenario", "profile", "mode", "seed"),
+    )
     commit = git_commit()
     dirty = git_dirty()
     for scenario in args.scenarios:
         for mode in modes:
             for seed in range(args.seed_start, args.seed_start + args.seeds):
                 run_key = (scenario, args.profile, mode, seed)
+                cfg = configs[run_key]
+                cfg_hash = config_hash(cfg.to_dict())
                 if run_key in completed_keys:
                     print(f"skip scenario={scenario} mode={mode} seed={seed} reason=resume")
                     continue
-                cfg = scenario_config(scenario, seed, mode, args.profile)  # type: ignore[arg-type]
-                if args.max_path_m is not None or args.tmax_s is not None:
-                    cfg = replace(
-                        cfg,
-                        platform=replace(
-                            cfg.platform,
-                            max_path_m=cfg.platform.max_path_m if args.max_path_m is None else args.max_path_m,
-                            tmax_s=cfg.platform.tmax_s if args.tmax_s is None else args.tmax_s,
-                        ),
-                    )
                 result = run_simulation(cfg)
-                cfg_hash = config_hash(cfg.to_dict())
                 result.summary.update(
                     {
                         "config_hash": cfg_hash,
                         "git_commit": commit,
                         "git_dirty": dirty,
                         "runner": "run_experiments",
+                        **summary_provenance(provenance),
                     }
                 )
                 summaries.append(result.summary)
                 if args.save_runs:
                     prefix = f"{scenario}__{mode}__{args.profile}__seed{seed}"
-                    save_run(result, args.out_dir / "runs", prefix)
+                    save_run(result, args.out_dir / "runs", prefix, provenance=provenance)
                 if args.checkpoint:
                     partial_df = pd.DataFrame(summaries)
                     partial_df.to_csv(partial_summary_path, index=False)
@@ -180,6 +194,7 @@ def main() -> None:
                 "runner": "cleanup_sim_v2.run_experiments",
                 "git_commit": commit,
                 "git_dirty": dirty,
+                "provenance": provenance,
                 "seeds": args.seeds,
                 "seed_start": args.seed_start,
                 "scenarios": args.scenarios,
@@ -201,6 +216,7 @@ def main() -> None:
     if comparisons_path.exists():
         print(f"paired comparisons: {comparisons_path}")
     print(f"manifest: {manifest_path}")
+    assert_provenance_unchanged(provenance)
 
 
 if __name__ == "__main__":

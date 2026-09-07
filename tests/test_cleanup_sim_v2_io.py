@@ -9,6 +9,7 @@ from pathlib import Path
 from cleanup_sim_v2.config import WorldConfig, scenario_config
 from cleanup_sim_v2.io import config_hash, git_commit, git_dirty, save_run
 from cleanup_sim_v2.simulation import run_simulation
+from cleanup_sim_v2.provenance import file_sha256
 
 
 def test_git_commit_returns_a_short_hash_inside_this_repository() -> None:
@@ -64,6 +65,10 @@ def test_save_run_writes_all_expected_files_with_matching_content(tmp_path: Path
     assert manifest["config_hash"] == config_hash(result.config.to_dict())
     assert manifest["summary"] == result.summary
     assert manifest["config"] == result.config.to_dict()
+    assert manifest["provenance_capture"] == "save_time"
+    assert manifest["provenance"]["environment"]["python"]
+    for kind, artifact in manifest["artifacts"].items():
+        assert artifact["sha256"] == file_sha256(paths[kind])
 
 
 def test_save_run_creates_the_output_directory_if_missing(tmp_path: Path) -> None:

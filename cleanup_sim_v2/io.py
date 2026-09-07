@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from .simulation import RunResult
+from .provenance import capture_provenance, file_sha256
 
 
 def config_hash(config_dict: dict) -> str:
@@ -44,7 +45,7 @@ def git_dirty(include_untracked: bool = False) -> bool:
     return bool(result.stdout.strip())
 
 
-def save_run(result: RunResult, out_dir: Path, prefix: str) -> dict[str, Path]:
+def save_run(result: RunResult, out_dir: Path, prefix: str, *, provenance: dict | None = None) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     cfg_dict = result.config.to_dict()
     manifest = {
@@ -53,6 +54,8 @@ def save_run(result: RunResult, out_dir: Path, prefix: str) -> dict[str, Path]:
         "git_dirty": git_dirty(),
         "config": cfg_dict,
         "summary": result.summary,
+        "provenance": capture_provenance() if provenance is None else provenance,
+        "provenance_capture": "save_time" if provenance is None else "runner_start",
     }
     paths = {
         "summary": out_dir / f"{prefix}_summary.json",
@@ -65,9 +68,13 @@ def save_run(result: RunResult, out_dir: Path, prefix: str) -> dict[str, Path]:
     }
     paths["summary"].write_text(json.dumps(result.summary, ensure_ascii=False, indent=2), encoding="utf-8")
     paths["config"].write_text(json.dumps(cfg_dict, ensure_ascii=False, indent=2), encoding="utf-8")
-    paths["manifest"].write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     result.series.to_csv(paths["series"], index=False)
     result.events.to_csv(paths["events"], index=False)
     np.save(paths["density"], result.density_map.expected_count)
     np.save(paths["positions"], result.field.positions)
+    manifest["artifacts"] = {
+        key: {"file": path.name, "sha256": file_sha256(path)}
+        for key, path in paths.items() if key != "manifest"
+    }
+    paths["manifest"].write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return paths

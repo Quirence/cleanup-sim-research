@@ -1,0 +1,21 @@
+{
+  "protocol_id": "reproducibility-control-2026-09-07-v1",
+  "purpose": "technical repeatability and historical discrepancy diagnosis; not algorithm selection",
+  "scenario": "strong_drift",
+  "profile": "nominal",
+  "modes": ["adaptive_mission", "belief_horizon"],
+  "seeds": [300, 301],
+  "repeats": 2,
+  "max_path_m": 3000.0,
+  "tmax_s": 16500.0,
+  "processes": "fresh process per run, sequential, same Python executable and inherited environment",
+  "source_requirement": "clean committed tree; full commit and actual source SHA-256 recorded",
+  "repeat_acceptance": "identical full config, provenance identity, and exact bytes of summary, events, series, final density and positions; artifact integrity verified",
+  "historical_float_comparison": {"rtol": 1e-12, "atol": 1e-12},
+  "historical_limits": "AFTERFIX adaptive source was dirty, versions and events unavailable; belief reference predates revision and config hashes must be checked",
+  "invalid_run_policy": "any process failure, provenance change, missing artifact, integrity mismatch or differing repeat fails control; retain all outputs; no selective exclusions or silent replacement",
+  "stop_reason_policy": "compare exactly; unexpected time-budget stop is retained and investigated, never silently excluded",
+  "seed_status": "300-301 are already inspected development seeds; no final holdout seeds used",
+  "budget_status": "3000 m is diagnostic only",
+  "historical_policy": "original CSV immutable and diagnostic; current repeatability does not identify historical cause"
+}

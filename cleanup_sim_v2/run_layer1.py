@@ -24,6 +24,10 @@ from .layer1 import (
 )
 from .layer1_validation import ExpectedMatrix, has_failing_issues, validate_summary, write_validation_outputs
 from .simulation import run_simulation
+from .provenance import (
+    assert_provenance_unchanged, capture_provenance, summary_provenance,
+    validate_resume_configs, validate_resume_provenance,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -163,6 +167,16 @@ def run_series(
     if resume and partial_path.exists():
         summaries = pd.read_csv(partial_path).to_dict("records")
     completed = _completed_keys(summaries)
+    provenance = capture_provenance()
+    validate_resume_provenance(summaries, provenance)
+    expected = {
+        (float(budget), scenario, profile, mode, seed): config_hash(
+            layer1_config(scenario, seed, mode, budget, profile).to_dict()
+        )
+        for budget in budgets for scenario in scenarios for mode in modes
+        for seed in range(seed_start, seed_start + seeds)
+    }
+    validate_resume_configs(summaries, expected, ("path_budget_m", "scenario", "profile", "mode", "seed"))
     commit = git_commit()
     dirty = git_dirty()
     for budget in budgets:
@@ -170,12 +184,12 @@ def run_series(
             for mode in modes:
                 for seed in range(seed_start, seed_start + seeds):
                     key = (float(budget), scenario, profile, mode, seed)
+                    cfg = layer1_config(scenario, seed, mode, budget, profile)
+                    cfg_hash = config_hash(cfg.to_dict())
                     if key in completed:
                         print(f"skip phase={phase} budget={budget:g} scenario={scenario} mode={mode} seed={seed}")
                         continue
-                    cfg = layer1_config(scenario, seed, mode, budget, profile)
                     result = run_simulation(cfg)
-                    cfg_hash = config_hash(cfg.to_dict())
                     result.summary.update(
                         {
                             "phase": phase,
@@ -186,12 +200,13 @@ def run_series(
                             "git_commit": commit,
                             "git_dirty": dirty,
                             "runner": "run_layer1",
+                            **summary_provenance(provenance),
                         }
                     )
                     summaries.append(result.summary)
                     if save_runs:
                         prefix = f"{scenario}__{mode}__{profile}__budget{int(budget)}__seed{seed}"
-                        save_run(result, out_dir / "runs", prefix)
+                        save_run(result, out_dir / "runs", prefix, provenance=provenance)
                     if checkpoint:
                         _write_summary_outputs(pd.DataFrame(summaries), out_dir, checkpoint=True)
                     print(
@@ -208,6 +223,7 @@ def run_series(
             "phase": phase,
             "git_commit": commit,
             "git_dirty": dirty,
+            "provenance": provenance,
             "budgets": budgets,
             "seeds": seeds,
             "seed_start": seed_start,
@@ -238,6 +254,7 @@ def run_series(
     print(f"summary: {out_dir / 'summary.csv'}")
     print(f"summary enriched: {out_dir / 'summary_enriched.csv'}")
     print(f"aggregate: {out_dir / 'aggregate_mean_std.csv'}")
+    assert_provenance_unchanged(provenance)
     return enriched
 
 
