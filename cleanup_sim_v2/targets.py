@@ -11,6 +11,7 @@ from .sensors import Detection
 
 @dataclass
 class TargetTrack:
+    track_id: int
     position: np.ndarray
     confidence: float
     hits: int
@@ -35,6 +36,7 @@ class TargetQueue:
         self.planner = planner
         self.tracks: list[TargetTrack] = []
         self.suppressed_regions: list[tuple[np.ndarray, float]] = []
+        self._next_track_id = 1
 
     def add_detections(self, detections: list[Detection], t_s: float, world: WorldConfig) -> list[TargetTrack]:
         self.prune(t_s)
@@ -49,6 +51,7 @@ class TargetQueue:
             match = self._find_match(position)
             if match is None:
                 track = TargetTrack(
+                    track_id=self._next_track_id,
                     position=position,
                     confidence=det.confidence,
                     hits=1,
@@ -58,6 +61,7 @@ class TargetQueue:
                     sensors={det.sensor},
                     source_ids=set(),
                 )
+                self._next_track_id += 1
                 self.tracks.append(track)
             else:
                 track = match

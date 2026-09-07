@@ -18,10 +18,24 @@ from cleanup_sim_v2.config import (
 from cleanup_sim_v2.io import config_hash
 from cleanup_sim_v2.hydrodynamics import drift_debris
 from cleanup_sim_v2.mapping import init_density_map, make_grid
-from cleanup_sim_v2.planners import _belief_candidates, choose_goal, initial_state, make_coverage_route
+from cleanup_sim_v2.planners import (
+    _approach_aware_candidates,
+    _belief_candidates,
+    _passes_density_risk_gate,
+    _swept_expected_count,
+    choose_goal,
+    initial_state,
+    make_coverage_route,
+)
 from cleanup_sim_v2.run_experiments import ALL_MODES, BASELINE_MODES, build_parser as build_experiment_parser
 from cleanup_sim_v2.sensors import Detection, detect_with_sensor
-from cleanup_sim_v2.simulation import _motion_speed, run_simulation
+from cleanup_sim_v2.simulation import (
+    _motion_speed,
+    _retarget_track_policy,
+    _true_local_stats,
+    _true_swept_count,
+    run_simulation,
+)
 from cleanup_sim_v2.targets import TargetQueue
 from cleanup_sim_v2.world import DebrisField, make_debris_field
 
@@ -244,9 +258,12 @@ def test_v2_parser_accepts_oracle_modes() -> None:
 
 
 def test_v2_parser_accepts_belief_horizon_mode() -> None:
-    args = build_experiment_parser().parse_args(["--modes", "belief_horizon", "--seeds", "1"])
-    assert args.modes == ["belief_horizon"]
+    args = build_experiment_parser().parse_args(
+        ["--modes", "belief_horizon", "belief_horizon_density_risk_gate", "--seeds", "1"]
+    )
+    assert args.modes == ["belief_horizon", "belief_horizon_density_risk_gate"]
     assert "belief_horizon" in ALL_MODES
+    assert "belief_horizon_density_risk_gate" in ALL_MODES
 
 
 def test_v2_parser_accepts_belief_provisional_modes() -> None:
@@ -283,6 +300,12 @@ def test_v2_parser_accepts_belief_orienteering_ablation_modes() -> None:
 
 def test_v2_parser_accepts_belief_horizon_ablation_modes() -> None:
     modes = [
+        "belief_horizon_approach_aware",
+        "belief_horizon_retarget",
+        "belief_horizon_retarget_strict",
+        "belief_horizon_retarget_locked",
+        "belief_horizon_retarget_region",
+        "belief_horizon_retarget_drift_switch",
         "belief_horizon_no_efficiency",
         "belief_horizon_no_track_prediction",
         "belief_horizon_no_refinement",
@@ -319,11 +342,60 @@ def test_v2_uniform_scenario_changes_distribution_but_preserves_hydro_case() -> 
 
 def test_belief_horizon_ablation_modes_change_exact_component() -> None:
     base = scenario_config("weak_drift", 0, "belief_horizon")
+    approach_aware = scenario_config("weak_drift", 0, "belief_horizon_approach_aware")
+    risk_gated = scenario_config("weak_drift", 0, "belief_horizon_density_risk_gate")
+    retarget = scenario_config("weak_drift", 0, "belief_horizon_retarget")
+    retarget_strict = scenario_config("weak_drift", 0, "belief_horizon_retarget_strict")
+    retarget_locked = scenario_config("weak_drift", 0, "belief_horizon_retarget_locked")
+    retarget_region = scenario_config("weak_drift", 0, "belief_horizon_retarget_region")
+    retarget_drift_switch = scenario_config("weak_drift", 0, "belief_horizon_retarget_drift_switch")
     no_efficiency = scenario_config("weak_drift", 0, "belief_horizon_no_efficiency")
     no_prediction = scenario_config("weak_drift", 0, "belief_horizon_no_track_prediction")
     no_refinement = scenario_config("weak_drift", 0, "belief_horizon_no_refinement")
 
     assert base.planner.belief_efficiency_score is True
+    assert base.planner.belief_density_risk_gate_enabled is False
+    assert base.planner.belief_approach_aware_enabled is False
+
+    assert approach_aware.planner.belief_approach_aware_enabled is True
+    assert approach_aware.planner.belief_density_risk_gate_enabled is False
+    assert approach_aware.planner.belief_efficiency_score is True
+
+    assert risk_gated.planner.belief_density_risk_gate_enabled is True
+    assert risk_gated.planner.belief_approach_aware_enabled is False
+    assert risk_gated.planner.belief_efficiency_score is True
+    assert risk_gated.planner.belief_track_prediction_enabled is True
+    assert risk_gated.planner.belief_refinement_enabled is True
+
+    assert retarget.planner.belief_goal_retarget_enabled is True
+    assert retarget.planner.belief_approach_aware_enabled is False
+    assert retarget.planner.belief_density_risk_gate_enabled is False
+
+    assert retarget_strict.planner.belief_goal_retarget_enabled is True
+    assert retarget_strict.planner.belief_goal_retarget_max_extra_travel_m < retarget.planner.belief_goal_retarget_max_extra_travel_m
+    assert retarget_strict.planner.belief_goal_retarget_score_tolerance < retarget.planner.belief_goal_retarget_score_tolerance
+    assert retarget_strict.planner.belief_goal_retarget_require_same_track is False
+
+    assert retarget_locked.planner.belief_goal_retarget_enabled is True
+    assert retarget_locked.planner.belief_goal_retarget_max_extra_travel_m == retarget_strict.planner.belief_goal_retarget_max_extra_travel_m
+    assert retarget_locked.planner.belief_goal_retarget_score_tolerance == retarget_strict.planner.belief_goal_retarget_score_tolerance
+    assert retarget_locked.planner.belief_goal_retarget_require_same_track is True
+    assert retarget_locked.planner.belief_goal_retarget_region_adaptive is False
+    assert retarget_locked.planner.belief_goal_retarget_drift_switch is False
+
+    assert retarget_region.planner.belief_goal_retarget_enabled is True
+    assert retarget_region.planner.belief_goal_retarget_require_same_track is False
+    assert retarget_region.planner.belief_goal_retarget_region_adaptive is True
+    assert retarget_region.planner.belief_goal_retarget_drift_switch is False
+    assert retarget_region.planner.belief_goal_retarget_region_radius_m < retarget_region.planner.belief_goal_retarget_max_shift_m
+
+    assert retarget_drift_switch.planner.belief_goal_retarget_enabled is True
+    assert retarget_drift_switch.planner.belief_goal_retarget_max_extra_travel_m == retarget_strict.planner.belief_goal_retarget_max_extra_travel_m
+    assert retarget_drift_switch.planner.belief_goal_retarget_score_tolerance == retarget_strict.planner.belief_goal_retarget_score_tolerance
+    assert retarget_drift_switch.planner.belief_goal_retarget_require_same_track is False
+    assert retarget_drift_switch.planner.belief_goal_retarget_region_adaptive is False
+    assert retarget_drift_switch.planner.belief_goal_retarget_drift_switch is True
+
     assert no_efficiency.planner.belief_efficiency_score is False
     assert no_efficiency.planner.belief_track_prediction_enabled is True
     assert no_efficiency.planner.belief_refinement_enabled is True
@@ -395,6 +467,23 @@ def test_v2_target_queue_hides_source_ids_from_planner_tracks() -> None:
     queue.add_detections([det, det], 0.0, cfg.world)
     assert len(queue.confirmed_targets(0.0)) == 1
     assert queue.tracks[0].source_ids == set()
+
+
+def test_v2_target_queue_assigns_stable_track_ids() -> None:
+    cfg = scenario_config("static_calm", 0, "belief_horizon")
+    queue = TargetQueue(cfg.planner)
+    first = Detection("camera", np.array([20.0, 30.0]), 0.9, source_index=None, is_false=False, range_m=12.0)
+    nearby = Detection("radar", np.array([20.5, 30.2]), 0.9, source_index=None, is_false=False, range_m=12.0)
+    second = Detection("camera", np.array([45.0, 30.0]), 0.9, source_index=None, is_false=False, range_m=12.0)
+
+    queue.add_detections([first], 0.0, cfg.world)
+    assert queue.tracks[0].track_id == 1
+    queue.add_detections([nearby], 1.0, cfg.world)
+    assert len(queue.tracks) == 1
+    assert queue.tracks[0].track_id == 1
+    queue.add_detections([second], 2.0, cfg.world)
+
+    assert [track.track_id for track in queue.tracks] == [1, 2]
 
 
 def test_v2_target_queue_suppresses_empty_goal_region() -> None:
@@ -582,6 +671,51 @@ def test_belief_horizon_refines_uncertain_radar_target_before_collection() -> No
     assert decision.details["candidate_type"] == "confirmed_target_refine"
     assert 25.0 < decision.point[0] < 40.0
     assert decision.details["target_uncertainty_m"] > cfg.planner.belief_collect_sigma_threshold_m
+    assert decision.details["target_track_id"] == 1.0
+
+
+def test_belief_horizon_confirmed_candidate_logs_track_id() -> None:
+    cfg = scenario_config("static_calm", 0, "belief_horizon")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=60.0, height_m=40.0, depot_x_m=5.0, depot_y_m=20.0, n_debris=1),
+        planner=replace(
+            cfg.planner,
+            belief_candidate_count=5,
+            belief_density_peak_count=0,
+            belief_entropy_peak_count=0,
+            belief_refinement_enabled=False,
+        ),
+        grid=replace(cfg.grid, nx=30, ny=20),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    target_queue = TargetQueue(cfg.planner)
+    det = Detection(
+        "camera",
+        np.array([35.0, 20.0]),
+        0.9,
+        source_index=None,
+        is_false=False,
+        range_m=12.0,
+        localization_sigma_m=0.6,
+    )
+    target_queue.add_detections([det, det], 0.0, cfg.world)
+
+    decision = choose_goal(
+        0.0,
+        np.array(cfg.world.depot, dtype=float),
+        initial_state(cfg.world, cfg.planner),
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        target_queue,
+        field=None,
+    )
+
+    assert decision.details["candidate_type"] in {"confirmed_target", "confirmed_target_transect"}
+    assert decision.details["target_track_id"] == 1.0
 
 
 def test_belief_horizon_provisional_uses_single_high_confidence_track() -> None:
@@ -678,6 +812,92 @@ def test_provisional_track_does_not_suppress_density_candidates() -> None:
 
     assert "provisional_target" in kinds or "provisional_target_transect" in kinds
     assert "density_peak" in kinds or "density_transect" in kinds
+
+
+def test_approach_aware_candidate_offsets_use_belief_focus_only() -> None:
+    cfg = scenario_config("static_calm", 0, "belief_horizon_approach_aware")
+    current = np.array([5.0, 20.0], dtype=float)
+    focus = np.array([30.0, 20.0], dtype=float)
+
+    candidates = _approach_aware_candidates(
+        current,
+        focus,
+        "density_peak",
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        0.0,
+        0.0,
+        0.0,
+    )
+
+    assert candidates
+    kinds = {kind for _, kind, *_ in candidates}
+    assert kinds == {"density_approach"}
+    assert any(abs(float(point[1] - focus[1])) > 0.1 for point, *_ in candidates)
+
+
+def test_approach_aware_swept_endpoint_can_outscore_point_goal_on_offset_patch() -> None:
+    cfg = scenario_config("static_calm", 0, "belief_horizon_approach_aware")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=60.0, height_m=40.0, depot_x_m=5.0, depot_y_m=20.0, n_debris=1),
+        platform=replace(cfg.platform, collection_width_m=1.0, collection_length_m=2.0),
+        planner=replace(
+            cfg.planner,
+            candidate_spacing_m=4.0,
+            belief_candidate_count=20,
+            belief_density_signal_threshold=0.0,
+            belief_density_peak_count=1,
+            belief_transect_count=1,
+            belief_entropy_peak_count=0,
+            belief_approach_offset_count=5,
+            belief_approach_offset_step_m=1.0,
+            belief_approach_extension_m=2.0,
+            belief_approach_switch_margin=-1e9,
+            belief_approach_local_support_weight=0.0,
+        ),
+        grid=replace(cfg.grid, nx=60, ny=40),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    density_map.expected_count[(np.abs(grid.xx - 30.5) <= 0.6) & (np.abs(grid.yy - 22.5) <= 0.6)] = 3.0
+    current = np.array(cfg.world.depot, dtype=float)
+    direct = np.array([30.5, 22.5], dtype=float)
+    candidates = _belief_candidates(
+        current,
+        initial_state(cfg.world, cfg.planner),
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+        0.0,
+    )
+    approach_scores = [
+        _swept_expected_count(density_map, current, point, cfg.platform)
+        for point, kind, *_ in candidates
+        if kind == "density_approach"
+    ]
+
+    assert approach_scores
+    assert max(approach_scores) >= _swept_expected_count(density_map, current, direct, cfg.platform)
+
+    decision = choose_goal(
+        0.0,
+        current,
+        initial_state(cfg.world, cfg.planner),
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+        field=None,
+    )
+
+    assert decision.details["candidate_type"] == "density_approach"
+    assert decision.details["score_expected_collection"] > 0.0
 
 
 def test_belief_horizon_builds_local_sweep_for_ready_camera_target() -> None:
@@ -923,3 +1143,252 @@ def test_belief_horizon_runs_and_logs_score_components() -> None:
     assert "score_rollout_collection" in starts.columns
     assert "score_refine_bonus" in starts.columns
     assert starts["score_total"].notna().any()
+
+
+def test_belief_retarget_mode_runs_and_reports_retarget_count() -> None:
+    cfg = scenario_config("static_calm", 1, "belief_horizon_retarget")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=55.0, height_m=45.0, depot_x_m=5.0, depot_y_m=22.0, n_debris=10),
+        platform=replace(cfg.platform, max_path_m=160.0, tmax_s=500.0),
+        planner=replace(
+            cfg.planner,
+            belief_goal_retarget_interval_s=2.0,
+            belief_goal_retarget_min_shift_m=0.25,
+            belief_goal_retarget_max_shift_m=12.0,
+        ),
+        grid=replace(cfg.grid, nx=28, ny=24),
+    )
+
+    result = run_simulation(cfg)
+
+    assert result.summary["mode"] == "belief_horizon_retarget"
+    assert "goal_retarget_count" in result.summary
+    assert result.summary["goal_retarget_count"] >= 0
+    if result.summary["goal_retarget_count"] > 0:
+        assert "goal_retargeted" in set(result.events["event"])
+
+
+def test_belief_retarget_locked_mode_runs_and_logs_track_lock_fields() -> None:
+    cfg = scenario_config("static_calm", 1, "belief_horizon_retarget_locked")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=55.0, height_m=45.0, depot_x_m=5.0, depot_y_m=22.0, n_debris=10),
+        platform=replace(cfg.platform, max_path_m=160.0, tmax_s=500.0),
+        planner=replace(
+            cfg.planner,
+            belief_goal_retarget_interval_s=2.0,
+            belief_goal_retarget_min_shift_m=0.25,
+            belief_goal_retarget_max_shift_m=12.0,
+        ),
+        grid=replace(cfg.grid, nx=28, ny=24),
+    )
+
+    result = run_simulation(cfg)
+
+    assert result.summary["mode"] == "belief_horizon_retarget_locked"
+    assert "goal_retarget_count" in result.summary
+    starts = result.events[result.events["event"] == "goal_started"]
+    assert "target_track_id" in starts.columns
+    retargeted = result.events[result.events["event"] == "goal_retargeted"]
+    if not retargeted.empty:
+        assert "old_target_track_id" in retargeted.columns
+        assert "target_track_id" in retargeted.columns
+        locked = retargeted[retargeted["same_track_required"] == True]  # noqa: E712
+        if not locked.empty:
+            assert (locked["old_target_track_id"] == locked["target_track_id"]).all()
+
+
+def test_region_adaptive_retarget_policy_locks_only_drifting_cross_region_target() -> None:
+    static_cfg = scenario_config("static_calm", 0, "belief_horizon_retarget_region")
+    drift_cfg = scenario_config("weak_drift", 0, "belief_horizon_retarget_region")
+    old_goal = np.array([20.0, 20.0], dtype=float)
+    near_goal = np.array([21.0, 20.0], dtype=float)
+    far_goal = np.array([25.0, 20.0], dtype=float)
+
+    static_policy = _retarget_track_policy(static_cfg, "target", 3, old_goal, far_goal)
+    drift_near_policy = _retarget_track_policy(drift_cfg, "target", 3, old_goal, near_goal)
+    drift_far_policy = _retarget_track_policy(drift_cfg, "target", 3, old_goal, far_goal)
+    density_policy = _retarget_track_policy(drift_cfg, "density", 0, old_goal, far_goal)
+
+    assert static_policy["drift_sensitive"] is False
+    assert static_policy["same_track_required"] is False
+    assert drift_near_policy["drift_sensitive"] is True
+    assert drift_near_policy["same_region"] is True
+    assert drift_near_policy["same_track_required"] is False
+    assert drift_far_policy["same_region"] is False
+    assert drift_far_policy["same_track_required"] is True
+    assert density_policy["same_track_required"] is False
+
+
+def test_drift_switch_retarget_policy_locks_drifting_targets_only() -> None:
+    static_cfg = scenario_config("static_calm", 0, "belief_horizon_retarget_drift_switch")
+    drift_cfg = scenario_config("weak_drift", 0, "belief_horizon_retarget_drift_switch")
+    old_goal = np.array([20.0, 20.0], dtype=float)
+    far_goal = np.array([25.0, 20.0], dtype=float)
+
+    static_policy = _retarget_track_policy(static_cfg, "target", 3, old_goal, far_goal)
+    drift_policy = _retarget_track_policy(drift_cfg, "target", 3, old_goal, far_goal)
+    density_policy = _retarget_track_policy(drift_cfg, "density", 0, old_goal, far_goal)
+
+    assert static_policy["drift_switch"] is True
+    assert static_policy["drift_sensitive"] is False
+    assert static_policy["same_track_required"] is False
+    assert drift_policy["drift_switch"] is True
+    assert drift_policy["drift_sensitive"] is True
+    assert drift_policy["same_track_required"] is True
+    assert density_policy["same_track_required"] is False
+
+
+def test_belief_retarget_region_mode_runs_and_logs_region_policy_fields() -> None:
+    cfg = scenario_config("weak_drift", 1, "belief_horizon_retarget_region")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=55.0, height_m=45.0, depot_x_m=5.0, depot_y_m=22.0, n_debris=10),
+        platform=replace(cfg.platform, max_path_m=160.0, tmax_s=500.0),
+        planner=replace(
+            cfg.planner,
+            belief_goal_retarget_interval_s=2.0,
+            belief_goal_retarget_min_shift_m=0.25,
+            belief_goal_retarget_max_shift_m=12.0,
+        ),
+        grid=replace(cfg.grid, nx=28, ny=24),
+    )
+
+    result = run_simulation(cfg)
+
+    assert result.summary["mode"] == "belief_horizon_retarget_region"
+    assert "goal_retarget_count" in result.summary
+    retargeted = result.events[result.events["event"] == "goal_retargeted"]
+    if not retargeted.empty:
+        assert "region_adaptive" in retargeted.columns
+        assert "same_region" in retargeted.columns
+        assert "drift_speed_mps" in retargeted.columns
+        assert retargeted["region_adaptive"].astype(bool).all()
+
+
+def test_density_risk_gate_filters_low_efficiency_density_only() -> None:
+    cfg = scenario_config("static_calm", 0, "belief_horizon_density_risk_gate")
+    planner = cfg.planner
+
+    accepted_low, low_expected_per_m, low_benefit_per_m, low_penalty = _passes_density_risk_gate(
+        "density_peak",
+        expected_collection=0.10,
+        rollout_collection=0.25,
+        information_gain=0.02,
+        effort_m=60.0,
+        planner=planner,
+    )
+    accepted_high, high_expected_per_m, high_benefit_per_m, high_penalty = _passes_density_risk_gate(
+        "density_peak",
+        expected_collection=5.0,
+        rollout_collection=3.0,
+        information_gain=0.10,
+        effort_m=40.0,
+        planner=planner,
+    )
+    hard_rejected, _, _, hard_penalty = _passes_density_risk_gate(
+        "density_peak",
+        expected_collection=0.01,
+        rollout_collection=0.01,
+        information_gain=0.0,
+        effort_m=70.0,
+        planner=planner,
+    )
+    target_accepted, _, _, target_penalty = _passes_density_risk_gate(
+        "confirmed_target",
+        expected_collection=0.0,
+        rollout_collection=0.0,
+        information_gain=0.0,
+        effort_m=80.0,
+        planner=planner,
+    )
+
+    assert accepted_low is True
+    assert low_expected_per_m < planner.belief_density_gate_min_expected_per_m
+    assert low_benefit_per_m < planner.belief_density_gate_min_benefit_per_m
+    assert low_penalty > 0.0
+    assert accepted_high is True
+    assert high_expected_per_m >= planner.belief_density_gate_min_expected_per_m
+    assert high_penalty == 0.0
+    assert hard_rejected is False
+    assert hard_penalty > 0.0
+    assert target_accepted is True
+    assert target_penalty == 0.0
+
+
+def test_density_risk_gate_logs_gate_decision_for_density_candidate() -> None:
+    cfg = scenario_config("static_calm", 0, "belief_horizon_density_risk_gate")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=80.0, height_m=50.0, depot_x_m=5.0, depot_y_m=25.0, n_debris=1),
+        platform=replace(cfg.platform, collection_width_m=1.0, collection_length_m=1.0),
+        planner=replace(
+            cfg.planner,
+            candidate_spacing_m=8.0,
+            belief_density_signal_threshold=0.0,
+            belief_entropy_peak_count=0,
+            belief_unconfirmed_candidate_max_travel_m=120.0,
+        ),
+        grid=replace(cfg.grid, nx=40, ny=25),
+    )
+    grid = make_grid(cfg.world, cfg.grid)
+    density_map = init_density_map(grid, cfg.grid, cfg.world)
+    density_map.expected_count *= 0.0
+    density_map.expected_count[(np.abs(grid.yy - 25.0) <= 1.1) & (np.abs(grid.xx - 24.0) <= 1.1)] = 2.0
+    state = initial_state(cfg.world, cfg.planner)
+
+    decision = choose_goal(
+        0.0,
+        np.array(cfg.world.depot, dtype=float),
+        state,
+        density_map,
+        cfg.world,
+        cfg.platform,
+        cfg.planner,
+        TargetQueue(cfg.planner),
+        field=None,
+    )
+
+    assert decision.mode == "belief_horizon"
+    assert "density_gate_passed" in decision.details or decision.details.get("density_gate_fallback") == 1.0
+
+
+def test_static_failure_diagnostics_count_local_truth_without_planner_access() -> None:
+    field = _field_at([(2.0, 0.0), (4.0, 0.0), (0.0, 5.0), (20.0, 20.0)])
+    local_count, local_mass, nearest = _true_local_stats(field, np.array([0.0, 0.0]), 5.1)
+    swept_count = _true_swept_count(
+        field,
+        np.array([0.0, 0.0]),
+        np.array([6.0, 0.0]),
+        PlatformConfig(collection_width_m=1.0, collection_length_m=1.0),
+    )
+
+    assert local_count == 3
+    assert local_mass > 0.0
+    assert np.isclose(nearest, 2.0)
+    assert swept_count == 2
+
+
+def test_static_failure_diagnostics_are_saved_in_summary_and_events() -> None:
+    cfg = scenario_config("static_calm", 0, "belief_horizon")
+    cfg = replace(
+        cfg,
+        world=WorldConfig(width_m=45.0, height_m=45.0, depot_x_m=5.0, depot_y_m=22.0, n_debris=8),
+        platform=replace(cfg.platform, max_path_m=120.0, tmax_s=400.0),
+        grid=replace(cfg.grid, nx=24, ny=24),
+    )
+
+    result = run_simulation(cfg)
+    starts = result.events[result.events["event"] == "goal_started"]
+    completes = result.events[result.events["event"] == "goal_completed"]
+
+    assert "first_detection_path_m" in result.summary
+    assert "first_collection_path_m" in result.summary
+    assert "density_empty_goal_rate" in result.summary
+    assert "missed_local_opportunity_rate" in result.summary
+    assert "true_local_count" in starts.columns
+    assert "true_swept_count" in starts.columns
+    assert "candidate_group" in starts.columns
+    assert "true_local_remaining_count" in completes.columns
+    assert "missed_local_opportunity" in completes.columns

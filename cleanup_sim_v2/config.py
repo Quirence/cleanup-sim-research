@@ -23,6 +23,13 @@ PlannerMode = Literal[
     "greedy",
     "active",
     "belief_horizon",
+    "belief_horizon_approach_aware",
+    "belief_horizon_density_risk_gate",
+    "belief_horizon_retarget",
+    "belief_horizon_retarget_strict",
+    "belief_horizon_retarget_locked",
+    "belief_horizon_retarget_region",
+    "belief_horizon_retarget_drift_switch",
     "belief_horizon_provisional",
     "belief_cluster_route",
     "belief_orienteering",
@@ -198,6 +205,32 @@ class PlannerConfig:
     belief_transect_collection_speed_enabled: bool = True
     belief_collection_speed_expected_count_threshold: float = 1.0
     belief_density_signal_threshold: float = 0.35
+    belief_density_risk_gate_enabled: bool = False
+    belief_density_gate_min_expected_collection: float = 0.25
+    belief_density_gate_min_expected_per_m: float = 0.07
+    belief_density_gate_min_benefit_per_m: float = 0.14
+    belief_density_gate_penalty_weight: float = 2.5
+    belief_density_gate_hard_reject_expected: float = 0.05
+    belief_density_gate_hard_reject_benefit_per_m: float = 0.03
+    belief_density_gate_hard_reject_effort_m: float = 55.0
+    belief_approach_aware_enabled: bool = False
+    belief_approach_offset_count: int = 5
+    belief_approach_offset_step_m: float = 1.25
+    belief_approach_extension_m: float = 6.0
+    belief_approach_switch_margin: float = 0.10
+    belief_approach_local_support_weight: float = 0.04
+    belief_goal_retarget_enabled: bool = False
+    belief_goal_retarget_interval_s: float = 10.0
+    belief_goal_retarget_min_shift_m: float = 1.0
+    belief_goal_retarget_max_shift_m: float = 8.0
+    belief_goal_retarget_score_tolerance: float = 0.35
+    belief_goal_retarget_max_extra_travel_m: float = 4.0
+    belief_goal_retarget_max_per_goal: int = 1
+    belief_goal_retarget_require_same_track: bool = False
+    belief_goal_retarget_region_adaptive: bool = False
+    belief_goal_retarget_drift_switch: bool = False
+    belief_goal_retarget_region_radius_m: float = 2.5
+    belief_goal_retarget_drift_speed_threshold_mps: float = 0.02
     belief_entropy_signal_threshold: float = 0.02
     belief_collect_sigma_threshold_m: float = 1.2
     belief_refine_standoff_m: float = 8.0
@@ -356,6 +389,43 @@ def scenario_config(
     planner = PlannerConfig(mode=mode)
     if mode.startswith("belief_"):
         planner = replace(planner, coverage_spacing_m=belief_scout_spacing_m(sensors))
+    if mode == "belief_horizon_density_risk_gate":
+        planner = replace(planner, belief_density_risk_gate_enabled=True)
+    if mode == "belief_horizon_approach_aware":
+        planner = replace(planner, belief_approach_aware_enabled=True, belief_candidate_count=45)
+    if mode == "belief_horizon_retarget":
+        planner = replace(planner, belief_goal_retarget_enabled=True)
+    if mode == "belief_horizon_retarget_strict":
+        planner = replace(
+            planner,
+            belief_goal_retarget_enabled=True,
+            belief_goal_retarget_max_extra_travel_m=1.0,
+            belief_goal_retarget_score_tolerance=0.15,
+        )
+    if mode == "belief_horizon_retarget_locked":
+        planner = replace(
+            planner,
+            belief_goal_retarget_enabled=True,
+            belief_goal_retarget_max_extra_travel_m=1.0,
+            belief_goal_retarget_score_tolerance=0.15,
+            belief_goal_retarget_require_same_track=True,
+        )
+    if mode == "belief_horizon_retarget_region":
+        planner = replace(
+            planner,
+            belief_goal_retarget_enabled=True,
+            belief_goal_retarget_max_extra_travel_m=1.0,
+            belief_goal_retarget_score_tolerance=0.15,
+            belief_goal_retarget_region_adaptive=True,
+        )
+    if mode == "belief_horizon_retarget_drift_switch":
+        planner = replace(
+            planner,
+            belief_goal_retarget_enabled=True,
+            belief_goal_retarget_max_extra_travel_m=1.0,
+            belief_goal_retarget_score_tolerance=0.15,
+            belief_goal_retarget_drift_switch=True,
+        )
     if mode in {"belief_horizon_provisional", "belief_orienteering_provisional"}:
         planner = replace(planner, belief_provisional_targets_enabled=True)
     if mode == "belief_horizon_no_efficiency":

@@ -7,7 +7,7 @@ import pandas as pd
 
 from .collection import CaptureEvent, collect_in_aperture
 from .config import RunConfig
-from .hydrodynamics import drift_debris
+from .hydrodynamics import ambient_velocity, drift_debris
 from .mapping import (
     DensityMap,
     init_density_map,
@@ -80,6 +80,9 @@ def _motion_speed(
         "confirmed_target_transect",
         "provisional_target_transect",
         "density_transect",
+        "confirmed_target_approach",
+        "provisional_target_approach",
+        "density_approach",
         "cluster_route_transect",
         "confirmed_target_local_sweep",
     }
@@ -111,15 +114,109 @@ def _grid_value(density_map: DensityMap, point: np.ndarray) -> float:
     return float(density_map.expected_count[iy, ix])
 
 
+def _diagnostic_radius_m(config: RunConfig) -> float:
+    return max(12.0, 0.75 * config.planner.candidate_spacing_m)
+
+
+def _true_local_stats(field: DebrisField, point: np.ndarray, radius_m: float) -> tuple[int, float, float]:
+    alive = np.where(~field.collected)[0]
+    if alive.size == 0:
+        return 0, 0.0, float("nan")
+    distances = np.linalg.norm(field.positions[alive] - point, axis=1)
+    local = distances <= radius_m
+    local_ids = alive[local]
+    nearest = float(np.min(distances)) if distances.size else float("nan")
+    mass = float(field.masses_kg[local_ids].sum()) if local_ids.size else 0.0
+    return int(local_ids.size), mass, nearest
+
+
+def _true_swept_count(field: DebrisField, start: np.ndarray, goal: np.ndarray, platform) -> int:
+    alive = np.where(~field.collected)[0]
+    if alive.size == 0:
+        return 0
+    direction = goal - start
+    dist = float(np.linalg.norm(direction))
+    if dist <= 1e-9:
+        return 0
+    direction = direction / dist
+    rel = field.positions[alive] - start
+    along = rel @ direction
+    lateral = np.abs(rel[:, 0] * direction[1] - rel[:, 1] * direction[0])
+    mask = (
+        (along >= -0.15 * platform.collection_length_m)
+        & (along <= dist + platform.collection_length_m)
+        & (lateral <= 0.5 * platform.collection_width_m)
+    )
+    return int(np.count_nonzero(mask))
+
+
+def _candidate_group(goal_mode: str, candidate_type: object) -> str:
+    kind = "" if candidate_type is None else str(candidate_type)
+    if goal_mode in {"greedy", "route", "oracle", "coverage", "return"}:
+        return goal_mode
+    if kind.endswith("_refine"):
+        return "refinement"
+    if kind.startswith("confirmed_target") or kind.startswith("provisional_target"):
+        return "target"
+    if kind.startswith("density"):
+        return "density"
+    if kind.startswith("entropy"):
+        return "entropy"
+    if "coverage" in kind:
+        return "coverage"
+    if kind == "fallback":
+        return "fallback"
+    return "other"
+
+
+def _retarget_track_policy(
+    config: RunConfig,
+    old_group: str,
+    old_track_id: int,
+    old_goal: np.ndarray,
+    new_goal: np.ndarray,
+) -> dict[str, float | bool]:
+    region_distance_m = float(np.linalg.norm(new_goal - old_goal))
+    same_region = region_distance_m <= config.planner.belief_goal_retarget_region_radius_m
+    drift_speed_mps = float(np.linalg.norm(ambient_velocity(config.hydro)))
+    drift_sensitive = drift_speed_mps >= config.planner.belief_goal_retarget_drift_speed_threshold_mps
+    same_track_required = bool(
+        old_group in {"target", "refinement"}
+        and old_track_id > 0
+        and (
+            config.planner.belief_goal_retarget_require_same_track
+            or (
+                config.planner.belief_goal_retarget_region_adaptive
+                and drift_sensitive
+                and not same_region
+            )
+            or (
+                config.planner.belief_goal_retarget_drift_switch
+                and drift_sensitive
+            )
+        )
+    )
+    return {
+        "same_track_required": same_track_required,
+        "same_region": bool(same_region),
+        "retarget_region_distance_m": region_distance_m,
+        "drift_speed_mps": drift_speed_mps,
+        "drift_sensitive": bool(drift_sensitive),
+        "drift_switch": bool(config.planner.belief_goal_retarget_drift_switch),
+    }
+
+
 def _append_capture_event(
     events: list[dict],
     cap: CaptureEvent,
     t_s: float,
     mode: str,
     bin_load_kg: float,
+    path_m: float,
 ) -> None:
     row = {
         "time_s": t_s,
+        "path_m": path_m,
         "event": "collect" if cap.success else cap.reason,
         "mode": mode,
         "debris_id": cap.debris_id,
@@ -154,6 +251,8 @@ def run_simulation(config: RunConfig) -> RunResult:
     current_goal_start_time = 0.0
     current_goal_arrived_time: float | None = None
     current_goal_start_collected = 0
+    current_goal_last_retarget_t_s = -1e9
+    current_goal_retarget_count = 0
     bin_load_kg = 0.0
     total_path_m = 0.0
     t_s = 0.0
@@ -181,6 +280,30 @@ def run_simulation(config: RunConfig) -> RunResult:
     pushed_away_events = 0
     info_gain_total = 0.0
     unload_events = 0
+    goal_retarget_count = 0
+    diagnostic_radius_m = _diagnostic_radius_m(config)
+    local_opportunity_threshold = max(3, int(0.02 * config.world.n_debris))
+    first_detection_path_m: float | None = None
+    first_collection_path_m: float | None = None
+    goal_group_counts: dict[str, int] = {}
+    goal_group_empty_counts: dict[str, int] = {}
+    goal_group_success_counts: dict[str, int] = {}
+    goal_group_path_m: dict[str, float] = {}
+    goal_group_wasted_path_m: dict[str, float] = {}
+    goal_group_collected_delta: dict[str, int] = {}
+    density_empty_goal_count = 0
+    density_goal_count = 0
+    target_goal_count = 0
+    target_empty_goal_count = 0
+    refinement_path_m = 0.0
+    true_positive_goal_count = 0
+    true_empty_goal_count = 0
+    missed_local_opportunity_count = 0
+    missed_local_opportunity_path_m = 0.0
+    post_success_departures_from_rich_area = 0
+    previous_goal_local_remaining_count = 0
+    previous_goal_had_local_opportunity = False
+    previous_goal_position: np.ndarray | None = None
 
     while t_s <= config.platform.tmax_s and total_path_m <= config.platform.max_path_m:
         dt_s = config.platform.dt_s
@@ -197,6 +320,8 @@ def run_simulation(config: RunConfig) -> RunResult:
             info_gain_total += info_gain
             confirmations = target_queue.add_detections(detections, t_s, config.world)
             for det in detections:
+                if not det.is_false and first_detection_path_m is None:
+                    first_detection_path_m = total_path_m
                 detection_records.append(
                     {
                         "sensor": det.sensor,
@@ -234,6 +359,12 @@ def run_simulation(config: RunConfig) -> RunResult:
                 )
 
         if current_goal is None:
+            if previous_goal_had_local_opportunity and previous_goal_position is not None:
+                residual_distance = float(np.linalg.norm(pos - previous_goal_position))
+                previous_local_remaining_for_row = previous_goal_local_remaining_count
+            else:
+                residual_distance = 0.0
+                previous_local_remaining_for_row = 0
             decision = choose_goal(
                 t_s,
                 pos,
@@ -254,17 +385,42 @@ def run_simulation(config: RunConfig) -> RunResult:
             current_goal_start_path = total_path_m
             current_goal_start_time = t_s
             current_goal_arrived_time = None
+            current_goal_last_retarget_t_s = t_s
+            current_goal_retarget_count = 0
             current_goal_start_collected = int(field.collected.sum())
+            local_count, local_mass, nearest_true_m = _true_local_stats(field, current_goal, diagnostic_radius_m)
+            true_swept_count = _true_swept_count(field, pos, current_goal, config.platform)
+            candidate_group = _candidate_group(current_goal_mode, current_goal_details.get("candidate_type"))
+            if previous_goal_had_local_opportunity and previous_goal_position is not None:
+                next_goal_distance_from_rich_area = float(np.linalg.norm(current_goal - previous_goal_position))
+                if next_goal_distance_from_rich_area > diagnostic_radius_m:
+                    post_success_departures_from_rich_area += 1
+                    missed_local_opportunity_path_m += next_goal_distance_from_rich_area
+            else:
+                next_goal_distance_from_rich_area = 0.0
+            previous_goal_had_local_opportunity = False
+            previous_goal_position = None
+            previous_goal_local_remaining_count = 0
             row = {
                 "time_s": t_s,
+                "path_m": total_path_m,
                 "event": "goal_started",
                 "mode": current_goal_mode,
                 "reason": current_goal_reason,
+                "candidate_group": candidate_group,
                 "x": float(current_goal[0]),
                 "y": float(current_goal[1]),
                 "distance_m": float(np.linalg.norm(current_goal - pos)),
                 "map_value": _grid_value(density_map, current_goal),
                 "expected_value": float(current_goal_expected_value),
+                "true_local_count": local_count,
+                "true_local_mass_kg": local_mass,
+                "nearest_true_debris_m": nearest_true_m,
+                "true_swept_count": true_swept_count,
+                "diagnostic_radius_m": diagnostic_radius_m,
+                "previous_goal_local_remaining_count": previous_local_remaining_for_row,
+                "next_goal_distance_from_rich_area_m": next_goal_distance_from_rich_area,
+                "residual_distance_from_previous_goal_m": residual_distance,
             }
             row.update(current_goal_details)
             events.append(row)
@@ -289,6 +445,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 events.append(
                     {
                         "time_s": t_s,
+                        "path_m": total_path_m,
                         "event": "goal_updated",
                         "mode": current_goal_mode,
                         "reason": current_goal_reason,
@@ -296,6 +453,86 @@ def run_simulation(config: RunConfig) -> RunResult:
                         "y": float(current_goal[1]),
                         "distance_m": float(np.linalg.norm(current_goal - pos)),
                         "expected_value": float(current_goal_expected_value),
+                    }
+                )
+        elif (
+            config.planner.belief_goal_retarget_enabled
+            and _is_belief_goal_mode(current_goal_mode)
+            and current_goal is not None
+            and current_goal_arrived_time is None
+            and current_goal_retarget_count < config.planner.belief_goal_retarget_max_per_goal
+            and t_s - current_goal_last_retarget_t_s >= config.planner.belief_goal_retarget_interval_s
+        ):
+            old_goal = current_goal.copy()
+            old_candidate_type = str(current_goal_details.get("candidate_type", ""))
+            old_track_id = int(float(current_goal_details.get("target_track_id", 0) or 0))
+            decision = choose_goal(
+                t_s,
+                pos,
+                planner_state,
+                density_map,
+                config.world,
+                config.platform,
+                config.planner,
+                target_queue,
+                field,
+            )
+            new_candidate_type = str(decision.details.get("candidate_type", ""))
+            new_track_id = int(float(decision.details.get("target_track_id", 0) or 0))
+            old_group = _candidate_group(current_goal_mode, old_candidate_type)
+            new_group = _candidate_group(decision.mode, new_candidate_type)
+            shift_m = float(np.linalg.norm(decision.point - old_goal))
+            old_remaining_m = float(np.linalg.norm(old_goal - pos))
+            new_remaining_m = float(np.linalg.norm(decision.point - pos))
+            score_floor = current_goal_expected_value - config.planner.belief_goal_retarget_score_tolerance
+            retarget_policy = _retarget_track_policy(config, old_group, old_track_id, old_goal, decision.point)
+            same_track_required = bool(retarget_policy["same_track_required"])
+            same_track_ok = not same_track_required or new_track_id == old_track_id
+            should_retarget = (
+                decision.mode == current_goal_mode
+                and old_group == new_group
+                and old_candidate_type == new_candidate_type
+                and same_track_ok
+                and config.planner.belief_goal_retarget_min_shift_m <= shift_m <= config.planner.belief_goal_retarget_max_shift_m
+                and new_remaining_m <= old_remaining_m + config.planner.belief_goal_retarget_max_extra_travel_m
+                and decision.expected_value >= score_floor
+            )
+            current_goal_last_retarget_t_s = t_s
+            if should_retarget:
+                current_goal = decision.point
+                current_goal_reason = f"{current_goal_reason}|retarget"
+                current_goal_expected_value = decision.expected_value
+                current_goal_details = dict(decision.details)
+                current_goal_arrived_time = None
+                goal_retarget_count += 1
+                current_goal_retarget_count += 1
+                events.append(
+                    {
+                        "time_s": t_s,
+                        "path_m": total_path_m,
+                        "event": "goal_retargeted",
+                        "mode": current_goal_mode,
+                        "reason": current_goal_reason,
+                        "candidate_type": new_candidate_type,
+                        "old_target_track_id": old_track_id,
+                        "target_track_id": new_track_id,
+                        "same_track_required": bool(same_track_required),
+                        "same_track_ok": bool(same_track_ok),
+                        "region_adaptive": bool(config.planner.belief_goal_retarget_region_adaptive),
+                        "same_region": bool(retarget_policy["same_region"]),
+                        "retarget_region_distance_m": float(retarget_policy["retarget_region_distance_m"]),
+                        "drift_speed_mps": float(retarget_policy["drift_speed_mps"]),
+                        "drift_sensitive": bool(retarget_policy["drift_sensitive"]),
+                        "drift_switch": bool(retarget_policy["drift_switch"]),
+                        "old_x": float(old_goal[0]),
+                        "old_y": float(old_goal[1]),
+                        "x": float(current_goal[0]),
+                        "y": float(current_goal[1]),
+                        "shift_m": shift_m,
+                        "old_remaining_m": old_remaining_m,
+                        "new_remaining_m": new_remaining_m,
+                        "expected_value": float(current_goal_expected_value),
+                        "retarget_count_for_goal": current_goal_retarget_count,
                     }
                 )
 
@@ -347,7 +584,9 @@ def run_simulation(config: RunConfig) -> RunResult:
                     suppress_collected_area(density_map, cap.position, max(config.platform.collection_width_m, 1.0))
                 elif cap.reason == "missed_capture":
                     missed_capture_count += 1
-                _append_capture_event(events, cap, sub_t_s, current_goal_mode, bin_load_kg)
+                if cap.success and first_collection_path_m is None:
+                    first_collection_path_m = total_path_m
+                _append_capture_event(events, cap, sub_t_s, current_goal_mode, bin_load_kg, total_path_m)
 
             arrived = arrived or sub_arrived
             if np.all(field.collected) or total_path_m >= config.platform.max_path_m:
@@ -358,6 +597,7 @@ def run_simulation(config: RunConfig) -> RunResult:
             events.append(
                 {
                     "time_s": t_s,
+                    "path_m": total_path_m,
                     "event": "done",
                     "mode": current_goal_mode,
                     "x": float(pos[0]),
@@ -375,10 +615,13 @@ def run_simulation(config: RunConfig) -> RunResult:
             current_goal_start_path = total_path_m
             current_goal_start_time = t_s + dt_s
             current_goal_arrived_time = None
+            current_goal_last_retarget_t_s = t_s + dt_s
+            current_goal_retarget_count = 0
             current_goal_start_collected = int(field.collected.sum())
             events.append(
                 {
                     "time_s": t_s + dt_s,
+                    "path_m": total_path_m,
                     "event": "return_started",
                     "mode": "return",
                     "reason": current_goal_reason,
@@ -406,6 +649,13 @@ def run_simulation(config: RunConfig) -> RunResult:
             goal_path = total_path_m - current_goal_start_path
             goal_time = t_s + dt_s - current_goal_start_time
             candidate_type = current_goal_details.get("candidate_type")
+            candidate_group = _candidate_group(current_goal_mode, candidate_type)
+            local_remaining_count, local_remaining_mass, nearest_remaining_m = _true_local_stats(
+                field,
+                current_goal,
+                diagnostic_radius_m,
+            )
+            true_swept_remaining_count = _true_swept_count(field, pos, current_goal, config.platform)
             is_refinement_goal = (
                 _is_belief_goal_mode(current_goal_mode)
                 and str(candidate_type).endswith("_refine")
@@ -415,6 +665,9 @@ def run_simulation(config: RunConfig) -> RunResult:
                 "confirmed_target_transect",
                 "provisional_target_transect",
                 "density_transect",
+                "confirmed_target_approach",
+                "provisional_target_approach",
+                "density_approach",
                 "confirmed_target_local_sweep",
                 "cluster_route_transect",
             }
@@ -436,8 +689,31 @@ def run_simulation(config: RunConfig) -> RunResult:
             counts_for_goal_metrics = current_goal_mode != "return" and not is_refinement_goal
             if counts_for_goal_metrics:
                 evaluated_goal_count += 1
+                goal_group_counts[candidate_group] = goal_group_counts.get(candidate_group, 0) + 1
+                goal_group_path_m[candidate_group] = goal_group_path_m.get(candidate_group, 0.0) + goal_path
+                goal_group_collected_delta[candidate_group] = (
+                    goal_group_collected_delta.get(candidate_group, 0) + collected_delta
+                )
+                if candidate_group == "density":
+                    density_goal_count += 1
+                if candidate_group == "target":
+                    target_goal_count += 1
+                if local_remaining_count > 0 or collected_delta > 0:
+                    true_positive_goal_count += 1
+                else:
+                    true_empty_goal_count += 1
                 if collected_delta > 0:
                     goal_successes += 1
+                    goal_group_success_counts[candidate_group] = goal_group_success_counts.get(candidate_group, 0) + 1
+                    if local_remaining_count >= local_opportunity_threshold:
+                        missed_local_opportunity_count += 1
+                        previous_goal_had_local_opportunity = True
+                        previous_goal_position = current_goal.copy()
+                        previous_goal_local_remaining_count = local_remaining_count
+                    else:
+                        previous_goal_had_local_opportunity = False
+                        previous_goal_position = None
+                        previous_goal_local_remaining_count = 0
                     if _is_belief_goal_mode(current_goal_mode) and is_transect_goal:
                         target_queue.remove_near(current_goal, empty_suppression_radius)
                         if not is_cluster_route_goal:
@@ -447,8 +723,19 @@ def run_simulation(config: RunConfig) -> RunResult:
                             planner_state.current_route_details = {}
                 else:
                     empty_goal_arrivals += 1
+                    goal_group_empty_counts[candidate_group] = goal_group_empty_counts.get(candidate_group, 0) + 1
+                    goal_group_wasted_path_m[candidate_group] = (
+                        goal_group_wasted_path_m.get(candidate_group, 0.0) + goal_path
+                    )
+                    if candidate_group == "density":
+                        density_empty_goal_count += 1
+                    if candidate_group == "target":
+                        target_empty_goal_count += 1
                     wasted_path_to_empty_goals += goal_path
                     wasted_time_to_empty_goals += goal_time
+                    previous_goal_had_local_opportunity = False
+                    previous_goal_position = None
+                    previous_goal_local_remaining_count = 0
                     target_queue.suppress_near(current_goal, t_s + dt_s, empty_suppression_radius)
                     if _is_belief_goal_mode(current_goal_mode) and is_cluster_route_goal:
                         planner_state.current_route = None
@@ -457,11 +744,15 @@ def run_simulation(config: RunConfig) -> RunResult:
                         planner_state.current_route_details = {}
                     if current_goal_mode == "route":
                         route_false_visits += 1
+            elif is_refinement_goal:
+                refinement_path_m += goal_path
             row = {
                 "time_s": t_s + dt_s,
+                "path_m": total_path_m,
                 "event": "goal_completed",
                 "mode": current_goal_mode,
                 "reason": current_goal_reason,
+                "candidate_group": candidate_group,
                 "x": float(pos[0]),
                 "y": float(pos[1]),
                 "collected_delta": collected_delta,
@@ -469,6 +760,12 @@ def run_simulation(config: RunConfig) -> RunResult:
                 "goal_time_s": float(goal_time),
                 "empty_goal": collected_delta == 0,
                 "expected_value": float(current_goal_expected_value),
+                "true_local_remaining_count": local_remaining_count,
+                "true_local_remaining_mass_kg": local_remaining_mass,
+                "nearest_remaining_debris_m": nearest_remaining_m,
+                "true_swept_remaining_count": true_swept_remaining_count,
+                "missed_local_opportunity": bool(collected_delta > 0 and local_remaining_count >= local_opportunity_threshold),
+                "local_opportunity_threshold": local_opportunity_threshold,
             }
             row.update(current_goal_details)
             events.append(row)
@@ -477,6 +774,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 events.append(
                     {
                         "time_s": t_s + dt_s,
+                        "path_m": total_path_m,
                         "event": "unload",
                         "mode": current_goal_mode,
                         "x": float(pos[0]),
@@ -517,6 +815,12 @@ def run_simulation(config: RunConfig) -> RunResult:
     path_values = [float(s["path_m"]) for s in series]
     ratios = [float(s["collected_ratio"]) for s in series]
     detection_summary = sensor_metrics(detection_records, config.world.n_debris)
+    density_wasted_path = goal_group_wasted_path_m.get("density", 0.0)
+    target_wasted_path = goal_group_wasted_path_m.get("target", 0.0)
+    coverage_wasted_path = goal_group_wasted_path_m.get("coverage", 0.0)
+    density_collected_delta = goal_group_collected_delta.get("density", 0)
+    target_collected_delta = goal_group_collected_delta.get("target", 0)
+    coverage_collected_delta = goal_group_collected_delta.get("coverage", 0)
     summary = {
         "scenario": config.scenario,
         "profile": config.profile,
@@ -531,6 +835,8 @@ def run_simulation(config: RunConfig) -> RunResult:
         "sim_time_s": t_s,
         "goal_count": goal_count,
         "evaluated_goal_count": evaluated_goal_count,
+        "first_detection_path_m": float(first_detection_path_m) if first_detection_path_m is not None else float("nan"),
+        "first_collection_path_m": float(first_collection_path_m) if first_collection_path_m is not None else float("nan"),
         "empty_goal_arrivals": empty_goal_arrivals,
         "empty_goal_arrivals_per_km": empty_goal_arrivals / max(1e-9, total_path_m / 1000.0),
         "wasted_path_to_empty_goals": wasted_path_to_empty_goals,
@@ -538,6 +844,31 @@ def run_simulation(config: RunConfig) -> RunResult:
         "wasted_time_to_empty_goals": wasted_time_to_empty_goals,
         "wasted_time_ratio": wasted_time_to_empty_goals / max(1e-9, t_s),
         "goal_success_rate": goal_successes / max(1, evaluated_goal_count),
+        "true_positive_goal_count": true_positive_goal_count,
+        "true_empty_goal_count": true_empty_goal_count,
+        "true_empty_goal_rate": true_empty_goal_count / max(1, evaluated_goal_count),
+        "density_goal_count": density_goal_count,
+        "density_empty_goal_count": density_empty_goal_count,
+        "density_empty_goal_rate": density_empty_goal_count / max(1, density_goal_count),
+        "density_wasted_path_m": density_wasted_path,
+        "density_wasted_path_ratio": density_wasted_path / max(1e-9, total_path_m),
+        "density_collected_delta": density_collected_delta,
+        "target_goal_count": target_goal_count,
+        "target_empty_goal_count": target_empty_goal_count,
+        "target_empty_goal_rate": target_empty_goal_count / max(1, target_goal_count),
+        "target_wasted_path_m": target_wasted_path,
+        "target_wasted_path_ratio": target_wasted_path / max(1e-9, total_path_m),
+        "target_collected_delta": target_collected_delta,
+        "coverage_wasted_path_m": coverage_wasted_path,
+        "coverage_wasted_path_ratio": coverage_wasted_path / max(1e-9, total_path_m),
+        "coverage_collected_delta": coverage_collected_delta,
+        "refinement_path_m": refinement_path_m,
+        "refinement_path_ratio": refinement_path_m / max(1e-9, total_path_m),
+        "missed_local_opportunity_count": missed_local_opportunity_count,
+        "missed_local_opportunity_rate": missed_local_opportunity_count / max(1, goal_successes),
+        "post_success_departures_from_rich_area": post_success_departures_from_rich_area,
+        "missed_local_opportunity_path_m": missed_local_opportunity_path_m,
+        "missed_local_opportunity_path_ratio": missed_local_opportunity_path_m / max(1e-9, total_path_m),
         "route_false_visits": route_false_visits,
         "capture_contacts": capture_contacts,
         "terminal_capture_attempts": terminal_capture_attempts,
@@ -552,6 +883,7 @@ def run_simulation(config: RunConfig) -> RunResult:
         "pushed_away_debris_count": int(np.count_nonzero(field.pushed_events)),
         "info_gain_total": info_gain_total,
         "unload_events": unload_events,
+        "goal_retarget_count": goal_retarget_count,
         "auc_collected_by_path": auc_by_path(path_values, ratios, config.platform.max_path_m),
         "collected_ratio_at_1km": value_at_path(path_values, ratios, 1000.0),
         "collected_ratio_at_2km": value_at_path(path_values, ratios, 2000.0),

@@ -12,6 +12,13 @@ from .world import DebrisField
 
 BELIEF_HORIZON_MODES = {
     "belief_horizon",
+    "belief_horizon_approach_aware",
+    "belief_horizon_density_risk_gate",
+    "belief_horizon_retarget",
+    "belief_horizon_retarget_strict",
+    "belief_horizon_retarget_locked",
+    "belief_horizon_retarget_region",
+    "belief_horizon_retarget_drift_switch",
     "belief_horizon_provisional",
     "belief_horizon_no_efficiency",
     "belief_horizon_no_track_prediction",
@@ -57,6 +64,7 @@ class _RouteCandidate:
     confidence: float = 0.0
     age_s: float = 0.0
     uncertainty_m: float = 0.0
+    track_id: int = 0
 
 
 @dataclass
@@ -274,6 +282,64 @@ def _transect_endpoint(
     return endpoint.astype(float)
 
 
+def _approach_aware_candidates(
+    current: np.ndarray,
+    focus: np.ndarray,
+    kind: str,
+    world: WorldConfig,
+    platform: PlatformConfig,
+    planner: PlannerConfig,
+    confidence: float,
+    age_s: float,
+    uncertainty_m: float,
+    track_id: int = 0,
+) -> list[tuple[np.ndarray, str, float, float, float, int]]:
+    if not planner.belief_approach_aware_enabled:
+        return []
+    direction = focus - current
+    dist = float(np.linalg.norm(direction))
+    if dist <= max(platform.arrival_tolerance_m, 0.5 * platform.collection_length_m):
+        return []
+
+    direction = direction / dist
+    perpendicular = np.array([-direction[1], direction[0]], dtype=float)
+    extension_m = max(
+        planner.belief_approach_extension_m,
+        2.0 * platform.collection_length_m,
+        0.5 * planner.belief_transect_extension_m,
+    )
+    step_m = max(
+        planner.belief_approach_offset_step_m,
+        0.75 * platform.collection_width_m,
+        0.5 * min(platform.collection_width_m, planner.candidate_spacing_m),
+    )
+    offset_count = max(1, int(planner.belief_approach_offset_count))
+    offsets = [0.0]
+    for rank in range(1, offset_count):
+        side = 1.0 if rank % 2 == 1 else -1.0
+        scale = (rank + 1) // 2
+        offsets.append(side * scale * step_m)
+
+    if kind.startswith("confirmed_target"):
+        approach_kind = "confirmed_target_approach"
+    elif kind.startswith("provisional_target"):
+        approach_kind = "provisional_target_approach"
+    elif kind.startswith("density"):
+        approach_kind = "density_approach"
+    else:
+        approach_kind = f"{kind}_approach"
+
+    candidates: list[tuple[np.ndarray, str, float, float, float, int]] = []
+    for offset_m in offsets:
+        endpoint = focus + direction * extension_m + perpendicular * offset_m
+        endpoint = np.clip(endpoint, [0.0, 0.0], [world.width_m, world.height_m])
+        travel = float(np.linalg.norm(endpoint - current))
+        if travel <= max(platform.arrival_tolerance_m, 0.25 * planner.candidate_spacing_m):
+            continue
+        candidates.append((endpoint.astype(float), approach_kind, confidence, age_s, uncertainty_m, track_id))
+    return candidates
+
+
 def _discount_swept_density(
     density_map: DensityMap,
     start: np.ndarray,
@@ -458,37 +524,67 @@ def _belief_candidates(
     planner: PlannerConfig,
     targets: TargetQueue,
     t_s: float,
-) -> list[tuple[np.ndarray, str, float, float, float]]:
-    candidates: list[tuple[np.ndarray, str, float, float, float]] = []
-    target_candidates: list[tuple[np.ndarray, str, float, float, float]] = []
+) -> list[tuple[np.ndarray, str, float, float, float, int]]:
+    candidates: list[tuple[np.ndarray, str, float, float, float, int]] = []
+    target_candidates: list[tuple[np.ndarray, str, float, float, float, int]] = []
     for track in _target_tracks(targets, t_s):
         age_s = max(0.0, t_s - track.last_seen_s)
         uncertainty_m = float(getattr(track, "localization_sigma_m", 0.0))
+        track_id = int(getattr(track, "track_id", 0))
         if _target_needs_refinement(track, platform, planner):
             refine = _target_refine_waypoint(current, track.position, world, platform, planner)
             if refine is not None:
-                target_candidates.append((refine, "confirmed_target_refine", float(track.confidence), age_s, uncertainty_m))
+                target_candidates.append((refine, "confirmed_target_refine", float(track.confidence), age_s, uncertainty_m, track_id))
             continue
-        target_candidates.append((track.position.copy(), "confirmed_target", float(track.confidence), age_s, uncertainty_m))
+        target_candidates.append((track.position.copy(), "confirmed_target", float(track.confidence), age_s, uncertainty_m, track_id))
+        target_candidates.extend(
+            _approach_aware_candidates(
+                current,
+                track.position,
+                "confirmed_target",
+                world,
+                platform,
+                planner,
+                float(track.confidence),
+                age_s,
+                uncertainty_m,
+                track_id,
+            )
+        )
         endpoint = _transect_endpoint(current, track.position, world, platform, planner)
         if endpoint is not None:
-            target_candidates.append((endpoint, "confirmed_target_transect", float(track.confidence), age_s, uncertainty_m))
+            target_candidates.append((endpoint, "confirmed_target_transect", float(track.confidence), age_s, uncertainty_m, track_id))
 
     confirmed_target_candidate_count = len(target_candidates)
 
     for track in _provisional_target_tracks(targets, t_s, planner):
         age_s = max(0.0, t_s - track.last_seen_s)
         uncertainty_m = float(getattr(track, "localization_sigma_m", 0.0))
+        track_id = int(getattr(track, "track_id", 0))
         confidence = float(track.confidence) * planner.belief_provisional_confidence_scale
         if _target_needs_refinement(track, platform, planner):
             refine = _target_refine_waypoint(current, track.position, world, platform, planner)
             if refine is not None:
-                target_candidates.append((refine, "provisional_target_refine", confidence, age_s, uncertainty_m))
+                target_candidates.append((refine, "provisional_target_refine", confidence, age_s, uncertainty_m, track_id))
             continue
-        target_candidates.append((track.position.copy(), "provisional_target", confidence, age_s, uncertainty_m))
+        target_candidates.append((track.position.copy(), "provisional_target", confidence, age_s, uncertainty_m, track_id))
+        target_candidates.extend(
+            _approach_aware_candidates(
+                current,
+                track.position,
+                "provisional_target",
+                world,
+                platform,
+                planner,
+                confidence,
+                age_s,
+                uncertainty_m,
+                track_id,
+            )
+        )
         endpoint = _transect_endpoint(current, track.position, world, platform, planner)
         if endpoint is not None:
-            target_candidates.append((endpoint, "provisional_target_transect", confidence, age_s, uncertainty_m))
+            target_candidates.append((endpoint, "provisional_target_transect", confidence, age_s, uncertainty_m, track_id))
 
     candidates.extend(target_candidates)
 
@@ -502,16 +598,31 @@ def _belief_candidates(
             min_sep,
             state.greedy_suppressed,
         )
-        candidates.extend((point, "density_peak", 0.0, 0.0, 0.0) for point in density_points)
+        candidates.extend((point, "density_peak", 0.0, 0.0, 0.0, 0) for point in density_points)
+        for point in density_points[: planner.belief_transect_count]:
+            candidates.extend(
+                _approach_aware_candidates(
+                    current,
+                    point,
+                    "density_peak",
+                    world,
+                    platform,
+                    planner,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0,
+                )
+            )
         for point in density_points[: planner.belief_transect_count]:
             endpoint = _transect_endpoint(current, point, world, platform, planner)
             if endpoint is not None:
-                candidates.append((endpoint, "density_transect", 0.0, 0.0, 0.0))
+                candidates.append((endpoint, "density_transect", 0.0, 0.0, 0.0, 0))
 
     h = entropy(density_map.occupancy)
     if confirmed_target_candidate_count == 0 and _relative_signal(h) >= planner.belief_entropy_signal_threshold:
         entropy_points = _top_grid_points(h, density_map, planner.belief_entropy_peak_count, min_sep, state.greedy_suppressed)
-        candidates.extend((point, "entropy_peak", 0.0, 0.0, 0.0) for point in entropy_points)
+        candidates.extend((point, "entropy_peak", 0.0, 0.0, 0.0, 0) for point in entropy_points)
 
     if confirmed_target_candidate_count == 0 and not density_points and state.coverage_route:
         min_route_travel = max(platform.arrival_tolerance_m, 0.5 * planner.candidate_spacing_m)
@@ -521,21 +632,26 @@ def _belief_candidates(
         ):
             state.coverage_index += 1
         idx = min(state.coverage_index, len(state.coverage_route) - 1)
-        candidates.append((state.coverage_route[idx].copy(), "coverage_route", 0.0, 0.0, 0.0))
+        candidates.append((state.coverage_route[idx].copy(), "coverage_route", 0.0, 0.0, 0.0, 0))
 
     base_waypoints = candidate_waypoints(world, planner)
-    if confirmed_target_candidate_count == 0 and not density_points and base_waypoints.size:
+    needs_scout_fallback = bool(
+        confirmed_target_candidate_count == 0
+        and base_waypoints.size
+        and (not density_points or planner.belief_density_risk_gate_enabled)
+    )
+    if needs_scout_fallback:
         distances = np.linalg.norm(base_waypoints - current, axis=1)
         far_enough = distances > max(platform.arrival_tolerance_m, 0.25 * planner.candidate_spacing_m)
         ordered = np.argsort(distances + 0.15 * np.arange(len(distances)))
         for idx in ordered:
             if far_enough[idx]:
-                candidates.append((base_waypoints[idx].astype(float), "coverage_fallback", 0.0, 0.0, 0.0))
+                candidates.append((base_waypoints[idx].astype(float), "coverage_fallback", 0.0, 0.0, 0.0, 0))
                 break
 
     # Deduplicate near-identical candidates while preserving source priority.
-    unique: list[tuple[np.ndarray, str, float, float, float]] = []
-    for point, kind, confidence, age_s, uncertainty_m in candidates:
+    unique: list[tuple[np.ndarray, str, float, float, float, int]] = []
+    for point, kind, confidence, age_s, uncertainty_m, track_id in candidates:
         clipped = np.clip(point.astype(float), [0.0, 0.0], [world.width_m, world.height_m])
         travel = float(np.linalg.norm(clipped - current))
         if (
@@ -550,10 +666,51 @@ def _belief_candidates(
             continue
         if any(np.linalg.norm(clipped - old[0]) <= platform.arrival_tolerance_m for old in unique):
             continue
-        unique.append((clipped, kind, confidence, age_s, uncertainty_m))
+        unique.append((clipped, kind, confidence, age_s, uncertainty_m, track_id))
         if len(unique) >= planner.belief_candidate_count:
             break
     return unique
+
+
+def _is_density_candidate(kind: str) -> bool:
+    return kind in {"density_peak", "density_transect", "density_approach"}
+
+
+def _is_approach_candidate(kind: str) -> bool:
+    return kind.endswith("_approach")
+
+
+def _passes_density_risk_gate(
+    kind: str,
+    expected_collection: float,
+    rollout_collection: float,
+    information_gain: float,
+    effort_m: float,
+    planner: PlannerConfig,
+) -> tuple[bool, float, float, float]:
+    if not planner.belief_density_risk_gate_enabled or not _is_density_candidate(kind):
+        return True, 0.0, 0.0, 0.0
+    expected_per_m = expected_collection / max(effort_m, 1e-9)
+    benefit_proxy = (
+        expected_collection
+        + planner.belief_rollout_collection_weight * rollout_collection
+        + planner.belief_information_gain_weight * information_gain
+    )
+    benefit_per_m = benefit_proxy / max(effort_m, 1e-9)
+    hard_reject = (
+        effort_m >= planner.belief_density_gate_hard_reject_effort_m
+        and expected_collection < planner.belief_density_gate_hard_reject_expected
+        and benefit_per_m < planner.belief_density_gate_hard_reject_benefit_per_m
+    )
+    expected_shortfall = max(0.0, planner.belief_density_gate_min_expected_per_m - expected_per_m)
+    benefit_shortfall = max(0.0, planner.belief_density_gate_min_benefit_per_m - benefit_per_m)
+    collection_shortfall = max(0.0, planner.belief_density_gate_min_expected_collection - expected_collection)
+    penalty = planner.belief_density_gate_penalty_weight * (
+        8.0 * expected_shortfall
+        + 4.0 * benefit_shortfall
+        + 0.35 * collection_shortfall
+    )
+    return not hard_reject, float(expected_per_m), float(benefit_per_m), float(penalty)
 
 
 def next_belief_horizon(
@@ -587,6 +744,7 @@ def next_belief_horizon(
                 "score_stale_risk": min(1.0, max(0.0, t_s - ready_track.last_seen_s) / max(1.0, planner.target_stale_after_s)),
                 "score_path_cost": float(np.linalg.norm(route[0] - current)),
                 "target_uncertainty_m": float(getattr(ready_track, "localization_sigma_m", 0.0)),
+                "target_track_id": float(getattr(ready_track, "track_id", 0)),
                 "local_sweep_lanes": float(len(route)),
             }
             return GoalDecision(
@@ -603,7 +761,7 @@ def next_belief_horizon(
         return GoalDecision(point, "belief_horizon", "belief_fallback_active", 0.0, {"candidate_type": "fallback"})
 
     best: GoalDecision | None = None
-    for point, kind, confidence, age_s, uncertainty_m in candidates:
+    for point, kind, confidence, age_s, uncertainty_m, track_id in candidates:
         travel = float(np.linalg.norm(point - current))
         expected_collection = _swept_expected_count(density_map, current, point, platform)
         post_pass_map = _discount_swept_density(density_map, current, point, platform, planner)
@@ -616,6 +774,13 @@ def next_belief_horizon(
             state.greedy_suppressed,
         )
         information_gain = _local_entropy_gain(density_map, point, planner.candidate_spacing_m)
+        approach_support = 0.0
+        if _is_approach_candidate(kind):
+            support_radius = max(
+                planner.candidate_spacing_m,
+                planner.belief_approach_extension_m + 2.0 * platform.collection_width_m,
+            )
+            approach_support = _local_expected_count(density_map, point, support_radius)
         target_confirmation = confidence if _is_target_candidate(kind) and not kind.endswith("_refine") else 0.0
         refine_bonus = confidence if kind.endswith("_refine") else 0.0
         empty_risk = float(np.exp(-max(0.0, expected_collection)))
@@ -631,6 +796,7 @@ def next_belief_horizon(
             + planner.belief_information_gain_weight * information_gain
             + planner.belief_target_confirmation_weight * target_confirmation
             + planner.belief_refine_confidence_weight * refine_bonus
+            + planner.belief_approach_local_support_weight * approach_support
         )
         risk_penalty = (
             planner.belief_empty_goal_risk_weight * empty_risk
@@ -646,6 +812,20 @@ def next_belief_horizon(
                 - risk_penalty
             )
         score += depot_bonus
+        gate_passed, density_expected_per_m, density_benefit_per_m, density_gate_penalty = _passes_density_risk_gate(
+            kind,
+            expected_collection,
+            rollout_collection,
+            information_gain,
+            effort_m,
+            planner,
+        )
+        if not gate_passed:
+            score = -np.inf
+        else:
+            score -= density_gate_penalty
+        if _is_approach_candidate(kind):
+            score -= planner.belief_approach_switch_margin
         details: dict[str, float | str] = {
             "candidate_type": kind,
             "score_total": float(score),
@@ -655,18 +835,34 @@ def next_belief_horizon(
             "score_expected_collection": float(expected_collection),
             "score_rollout_collection": float(rollout_collection),
             "score_information_gain": float(information_gain),
+            "score_approach_support": float(approach_support),
             "score_target_confirmation": float(target_confirmation),
             "score_refine_bonus": float(refine_bonus),
             "score_empty_risk": float(empty_risk),
             "score_stale_risk": float(stale_risk),
             "score_path_cost": float(path_cost),
             "target_uncertainty_m": float(uncertainty_m),
+            "target_track_id": float(track_id),
+            "density_gate_passed": float(gate_passed),
+            "density_expected_per_m": float(density_expected_per_m),
+            "density_benefit_per_m": float(density_benefit_per_m),
+            "density_gate_penalty": float(density_gate_penalty),
+            "approach_switch_margin": float(planner.belief_approach_switch_margin if _is_approach_candidate(kind) else 0.0),
         }
         decision = GoalDecision(point, "belief_horizon", "belief_horizon_score", float(score), details)
         if best is None or decision.expected_value > best.expected_value:
             best = decision
 
     assert best is not None
+    if not np.isfinite(best.expected_value):
+        point = next_active(current, density_map, world, planner)
+        return GoalDecision(
+            point,
+            "belief_horizon",
+            "belief_density_gate_fallback_active",
+            0.0,
+            {"candidate_type": "fallback", "density_gate_fallback": 1.0},
+        )
     return best
 
 
@@ -1119,10 +1315,10 @@ def _orienteering_candidates(
             allowed.add("entropy_peak")
     raw_candidates = _belief_candidates(current, state, density_map, world, platform, planner, targets, t_s)
     candidates: list[_RouteCandidate] = []
-    for point, kind, confidence, age_s, uncertainty_m in raw_candidates:
+    for point, kind, confidence, age_s, uncertainty_m, track_id in raw_candidates:
         if kind not in allowed:
             continue
-        candidate = _RouteCandidate(point.astype(float), kind, confidence, age_s, uncertainty_m)
+        candidate = _RouteCandidate(point.astype(float), kind, confidence, age_s, uncertainty_m, track_id)
         first_leg = _orienteering_leg_components(density_map, current, candidate, world, platform, planner)
         if first_leg["distance_m"] > planner.belief_orienteering_max_first_leg_m:
             continue
