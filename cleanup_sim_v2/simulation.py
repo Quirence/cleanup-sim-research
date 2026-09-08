@@ -26,6 +26,7 @@ from .planners import (
 from .sensors import detect_with_suite, wrap_angle
 from .targets import TargetQueue
 from .world import DebrisField, make_debris_field, true_count_map
+from .regimes import goal_snapshot
 
 
 @dataclass
@@ -353,6 +354,10 @@ def run_simulation(config: RunConfig) -> RunResult:
                 "expected_value": float(current_goal_expected_value),
             }
             row.update(current_goal_details)
+            row.update(goal_snapshot(
+                config, t_s, pos, current_goal, density_map, target_queue.tracks,
+                planner_state.current_route, total_path_m,
+            ))
             events.append(row)
         elif config.planner.mode == "oracle_current_physics" and current_goal_mode == "oracle":
             decision = choose_goal(
