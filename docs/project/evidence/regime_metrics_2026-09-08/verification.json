@@ -1,0 +1,19 @@
+{
+  "clean_commit": "392b6b04c43373c83cd91db3a7f34dfd8c55d5e8",
+  "new_rows": 3,
+  "new_snapshot_coverage": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "new_oracle_pairing_complete": true,
+  "old_rows": 4,
+  "old_dynamic_metrics_unavailable": true,
+  "input_output_hashes_verified": true,
+  "quality_claims_allowed": false,
+  "stop_reasons": {
+    "adaptive_mission": "path_budget",
+    "belief_horizon": "path_budget",
+    "oracle_current_physics": "path_budget"
+  }
+}
