@@ -1,0 +1,755 @@
+{
+  "status": "post_hoc_diagnostic_from_prespecified_event_fields",
+  "does_not_change_primary_decision": true,
+  "analysis_provenance": {
+    "provenance_id": "40b8f43cf5ef23ad29d80f0712aa6e4dcb7db161a15d48b209791c627bd5a6ec",
+    "git_commit_full": "6398d8661b0e97e3b26616591df7e46bc5155f96",
+    "source_sha256": "9ec00812b35d39ef4f92e0c4a286a8946034b903200e80960dc527dbbfac835c",
+    "environment_sha256": "d7d6ec05229d2b30aba071f56047beb17ff4b5e39a598573816121377609fd21"
+  },
+  "input_summary": {
+    "path": "docs/project/evidence/adaptive_horizon_2026-09-09/summary.csv",
+    "sha256": "3b71c75b4ea2a85b5549e580ecbb87f2c5584444d62619e7f9fffae7a0b31fa1",
+    "rows": 80
+  },
+  "event_artifacts": {
+    "count": 80,
+    "all_manifest_hashes_verified": true,
+    "inputs": [
+      {
+        "key": [
+          "static_calm",
+          400,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed400_events.csv",
+        "sha256": "41bbbdf57c1e91406264b18854678f0d3538d3a90bc749a822c11160e7de2895"
+      },
+      {
+        "key": [
+          "static_calm",
+          401,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed401_events.csv",
+        "sha256": "fb7d9aef80ba1479312339f0d28ddfded37963192b80183a16f0654bc6a54bae"
+      },
+      {
+        "key": [
+          "static_calm",
+          402,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed402_events.csv",
+        "sha256": "3f7d55861560e79c8f352fe7625ab9c7559e8e1de494d8f747cdb3987ad7544f"
+      },
+      {
+        "key": [
+          "static_calm",
+          403,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed403_events.csv",
+        "sha256": "534eafba2e1bd310989a814beb14dd1728498b6dbe6364ddb8a75a5468e34176"
+      },
+      {
+        "key": [
+          "static_calm",
+          404,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed404_events.csv",
+        "sha256": "7dad049e7137fdd44e5d42ec7a81d558a819edb1a2cff1c0d2fcec831809610c"
+      },
+      {
+        "key": [
+          "static_calm",
+          405,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed405_events.csv",
+        "sha256": "5ab049c69b53a90123ac5d76ba835eaf60539e7120622958d62714c9be701b68"
+      },
+      {
+        "key": [
+          "static_calm",
+          406,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed406_events.csv",
+        "sha256": "ceb105fc6cee5af6b17e10ba5dee0167d9ea6f61d99c0214f2878bfbbdd5636a"
+      },
+      {
+        "key": [
+          "static_calm",
+          407,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed407_events.csv",
+        "sha256": "bb40e172eca7efc059a129ad464cacf245c241056c8fc10a843aa153101c551d"
+      },
+      {
+        "key": [
+          "static_calm",
+          408,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed408_events.csv",
+        "sha256": "bfc60fbf6a6cf08a546f46715560726e0689f7fb87d1c277f3f91ba75e4c4032"
+      },
+      {
+        "key": [
+          "static_calm",
+          409,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__queue_commit__nominal__seed409_events.csv",
+        "sha256": "15d336fe75fa2d026ac7acd263065fa4d732f14f8d7b95b98222167b810df8e8"
+      },
+      {
+        "key": [
+          "static_calm",
+          400,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed400_events.csv",
+        "sha256": "ae38bebfc8e706a325e76e72b587ae310f727bf0cc5284247687eff8dc229a87"
+      },
+      {
+        "key": [
+          "static_calm",
+          401,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed401_events.csv",
+        "sha256": "bd54a67033aa0346c40663c1a0631ebde332fdba0d97da729d72698d228b7bd1"
+      },
+      {
+        "key": [
+          "static_calm",
+          402,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed402_events.csv",
+        "sha256": "a3b0b4735be526f769f96861fa14ce2d15fb29cbbe6e785e32c00fa1f507e99d"
+      },
+      {
+        "key": [
+          "static_calm",
+          403,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed403_events.csv",
+        "sha256": "0c01af70661b0b85d3bfdd90a88c56f6a17bf76fdd1f8f9b5488ca4479ea41ed"
+      },
+      {
+        "key": [
+          "static_calm",
+          404,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed404_events.csv",
+        "sha256": "a0efd7b6916ed3fa8b57a5030cd9be87bda9a1eddd835a35b9f89ae97c0f3ace"
+      },
+      {
+        "key": [
+          "static_calm",
+          405,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed405_events.csv",
+        "sha256": "358fa03a7a9ed889c088a742aeb919d1b5ca7ef1d3cb20add3000b84eba4b091"
+      },
+      {
+        "key": [
+          "static_calm",
+          406,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed406_events.csv",
+        "sha256": "698b3370c78e7f84e3b53aa045ea5517eb4f53e9fc2b5695e639b7da58d660e0"
+      },
+      {
+        "key": [
+          "static_calm",
+          407,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed407_events.csv",
+        "sha256": "d0f67cd6cc72c50a280a57789a97dd987a4ad04d7e2e4ea2b2db08456b4494fc"
+      },
+      {
+        "key": [
+          "static_calm",
+          408,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed408_events.csv",
+        "sha256": "235a545643b5d299eedea16ee79a79eb82c0be36b1037d9e80fe455174227858"
+      },
+      {
+        "key": [
+          "static_calm",
+          409,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09/runs/static_calm__adaptive_mission__replan_each_leg__nominal__seed409_events.csv",
+        "sha256": "a270e5e4e2da0e0f4d479b3c03747b38fc097111090e6415013b8f870d5d3f66"
+      },
+      {
+        "key": [
+          "weak_drift",
+          400,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed400_events.csv",
+        "sha256": "e8d7cf01b4328ff84d7fb5ff5e4ce97f3183f539013974c26232d026b6658689"
+      },
+      {
+        "key": [
+          "weak_drift",
+          401,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed401_events.csv",
+        "sha256": "76ce5c71fc2fa1ba041e4d1168529a29c5df53922cb47f40d07c821159897495"
+      },
+      {
+        "key": [
+          "weak_drift",
+          402,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed402_events.csv",
+        "sha256": "9cbbdb8ee5676b94fbe7b136879fb84ba3e6c9651faff8ccccab3bc945c42449"
+      },
+      {
+        "key": [
+          "weak_drift",
+          403,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed403_events.csv",
+        "sha256": "89d1e7c88fa613ffe85eab85f44f11122891a4960ec657c2638a53c6c8cd32eb"
+      },
+      {
+        "key": [
+          "weak_drift",
+          404,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed404_events.csv",
+        "sha256": "af2f894131ecab16c698f02e1a4e13621d478abb773e67b545131d5f933e18e7"
+      },
+      {
+        "key": [
+          "weak_drift",
+          405,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed405_events.csv",
+        "sha256": "a5447767f9f164b38b87adb1b0216d1c346da43c61e35b573d3744637a50d6b3"
+      },
+      {
+        "key": [
+          "weak_drift",
+          406,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed406_events.csv",
+        "sha256": "b5e8dea01b80a8057bc362e8f798893acf6a4ee5ca54bf488ea1339b47374310"
+      },
+      {
+        "key": [
+          "weak_drift",
+          407,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed407_events.csv",
+        "sha256": "79c60b25bf571d00460e5f7ae93a32f8f23fe8d81ac1b437ce62b3b734fe748c"
+      },
+      {
+        "key": [
+          "weak_drift",
+          408,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed408_events.csv",
+        "sha256": "77ee209106037eec1961020bf5b3d75ef78f4479a9777f830e4601a3fe2a1649"
+      },
+      {
+        "key": [
+          "weak_drift",
+          409,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__queue_commit__nominal__seed409_events.csv",
+        "sha256": "ea17de7930affbf03afc607c5b7f346875765b3caafd576f886c2ac5eae645ef"
+      },
+      {
+        "key": [
+          "weak_drift",
+          400,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed400_events.csv",
+        "sha256": "b4ec940f3dbec160964bf9dcefde5acc66fb62766e7d1888b78ee99135b7d916"
+      },
+      {
+        "key": [
+          "weak_drift",
+          401,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed401_events.csv",
+        "sha256": "9a1b6c63ca18d34124ae061792fc451805eafa18707036c9deed6cf85a937e6d"
+      },
+      {
+        "key": [
+          "weak_drift",
+          402,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed402_events.csv",
+        "sha256": "16d06ab315ab262a2e68e638fbe6ee9d3a9e190b7250399a71a6c2d1f8bfe0d5"
+      },
+      {
+        "key": [
+          "weak_drift",
+          403,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed403_events.csv",
+        "sha256": "55fafcd057f4ff8074b7d4dc68a3c4fa791b709d4c97de99e1aaa4a6c0acb12a"
+      },
+      {
+        "key": [
+          "weak_drift",
+          404,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed404_events.csv",
+        "sha256": "f52b95ea860b5bd82232573cd82ea04ea881bb061451c7f01f9cf1f3708cda15"
+      },
+      {
+        "key": [
+          "weak_drift",
+          405,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed405_events.csv",
+        "sha256": "76e4007c2e02e4307a1e580e96a50584eddb8ae144f9acf50c9ff3d1510cc8dd"
+      },
+      {
+        "key": [
+          "weak_drift",
+          406,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed406_events.csv",
+        "sha256": "660bda0b85901c8786ee5a4a12e4ffa9bd7e2b02023a9fe17856cf15a66548a3"
+      },
+      {
+        "key": [
+          "weak_drift",
+          407,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed407_events.csv",
+        "sha256": "55eed0b2b8ee32552fbf2aa9e3f4519dc49875053274f99627284303671464ec"
+      },
+      {
+        "key": [
+          "weak_drift",
+          408,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed408_events.csv",
+        "sha256": "bf7651979ab0fc73c35a3a9e6ed559ad6461f142969605d6d21cb5a8d8a97fc5"
+      },
+      {
+        "key": [
+          "weak_drift",
+          409,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_weak_drift/runs/weak_drift__adaptive_mission__replan_each_leg__nominal__seed409_events.csv",
+        "sha256": "ed9d83119282cd741a565b15b27ca3a6a2b31f4a237d2b5e47d651c5420f898e"
+      },
+      {
+        "key": [
+          "strong_drift",
+          400,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed400_events.csv",
+        "sha256": "327a66657195bfaa3db543acd4406f39227b7df6066a401833d42df09c6d4c9c"
+      },
+      {
+        "key": [
+          "strong_drift",
+          401,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed401_events.csv",
+        "sha256": "cc721f6bb706298f813fba8147915b3a3db426f510a64cdd33346817d0e68c86"
+      },
+      {
+        "key": [
+          "strong_drift",
+          402,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed402_events.csv",
+        "sha256": "3fba4cdfec21b4c4105a273d5b287127958b2f754acc22bea303560e9c49cd65"
+      },
+      {
+        "key": [
+          "strong_drift",
+          403,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed403_events.csv",
+        "sha256": "d898790cff613b06590792c30f30a0a3cd64df23d1a86f47933c7012b8c9c10f"
+      },
+      {
+        "key": [
+          "strong_drift",
+          404,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed404_events.csv",
+        "sha256": "86bdf4045d304fa8258de3e3eb719762947168b679db15b4b47df4932ca2a83f"
+      },
+      {
+        "key": [
+          "strong_drift",
+          405,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed405_events.csv",
+        "sha256": "855b65c1219ea4ef9583cdf93242b79f33a7e301c7cd504abd1f47025d32e211"
+      },
+      {
+        "key": [
+          "strong_drift",
+          406,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed406_events.csv",
+        "sha256": "b9a88acfa1eca9a9b46997a8848e73765222ec0a2497b2519c51956ba55f9a58"
+      },
+      {
+        "key": [
+          "strong_drift",
+          407,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed407_events.csv",
+        "sha256": "3086981146655609b2ca960fe05b77deb58c46c01f435974847453f309b6c109"
+      },
+      {
+        "key": [
+          "strong_drift",
+          408,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed408_events.csv",
+        "sha256": "877d3cf7488f3c81eb0c875972caeb5e96cfb6b2b779a7f3c1bc3e5ecfe8f2a0"
+      },
+      {
+        "key": [
+          "strong_drift",
+          409,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__queue_commit__nominal__seed409_events.csv",
+        "sha256": "9dfb71b8d2d4fcc1b44baf81136592bc321d55a7682f8693b4b8ccb95384f1a2"
+      },
+      {
+        "key": [
+          "strong_drift",
+          400,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed400_events.csv",
+        "sha256": "4b7cda8391dbc781aaf51878855e3a56af723ea8eaa766ba0a9732050d2658d6"
+      },
+      {
+        "key": [
+          "strong_drift",
+          401,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed401_events.csv",
+        "sha256": "85618db23c6b4c20a12ded38f97591a09d4e6b83ede5a427374ed38e589e27e2"
+      },
+      {
+        "key": [
+          "strong_drift",
+          402,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed402_events.csv",
+        "sha256": "e2f0f4d4abb5cf28e3880546604a3e8d7f5a536ad0a5a88f9f2419d1ffcd4679"
+      },
+      {
+        "key": [
+          "strong_drift",
+          403,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed403_events.csv",
+        "sha256": "26f1711631229f412249726fb024beff53ade9015d8381c07969d7e9cc707540"
+      },
+      {
+        "key": [
+          "strong_drift",
+          404,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed404_events.csv",
+        "sha256": "513079653d820996e854d0daf05a9498a6ad4798c31c80ad42861a34673bef5f"
+      },
+      {
+        "key": [
+          "strong_drift",
+          405,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed405_events.csv",
+        "sha256": "9469a79a6b0f6815774ac293a49cf0d17aa4a9683492ca1bfefc2aae3b60459c"
+      },
+      {
+        "key": [
+          "strong_drift",
+          406,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed406_events.csv",
+        "sha256": "a96fdfe7439f066b92082b7fac1f370b82402273c5cc1dceffff63cf0389705d"
+      },
+      {
+        "key": [
+          "strong_drift",
+          407,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed407_events.csv",
+        "sha256": "5f29590c53da563090bda0db3cb230351e9c4c3dd255741ca7cf979f9085b611"
+      },
+      {
+        "key": [
+          "strong_drift",
+          408,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed408_events.csv",
+        "sha256": "b2a1f4032cb916696763f45ad4bf90a756ed8bfbca472be5da83417f23997100"
+      },
+      {
+        "key": [
+          "strong_drift",
+          409,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_strong_drift/runs/strong_drift__adaptive_mission__replan_each_leg__nominal__seed409_events.csv",
+        "sha256": "9a02d49219ee8bab4e21b45a0eda447e5fd5fa1bc4329033f4a4c5e959283bb4"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          400,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed400_events.csv",
+        "sha256": "05ac61b3e8b94c492646a1f7dce0cb7e7d2a9d2b3ffe773d6981ac9a3ece99d8"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          401,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed401_events.csv",
+        "sha256": "853319a0558a081fc7ed6a53ba35be153f820c97484fbb6a950b390138fe18f0"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          402,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed402_events.csv",
+        "sha256": "cb7f32feb00214c847cc951f9427ab9a4e1228eb37d713ca77bfcc13f009a243"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          403,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed403_events.csv",
+        "sha256": "43cfb841ff0c7506164fa79e1bd5cefc7b5d78645f434e19be2173a0ddce46de"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          404,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed404_events.csv",
+        "sha256": "7b4511d75eaf3adc3d90e8f900ccce1ad8a30820888b5185c42e9111a5f5af3b"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          405,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed405_events.csv",
+        "sha256": "e4718aa9595455dcfb264565f859048c1694e07bbcdb98bb33fdda22f47a9896"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          406,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed406_events.csv",
+        "sha256": "06854c026c3add0179a671f23aa6e148ba93df0b38b68951d93a63801c5266c2"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          407,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed407_events.csv",
+        "sha256": "300f55312e85ec512fe86bd4d56446242f90c0a8bbe66dcdf1f1452d545089ed"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          408,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed408_events.csv",
+        "sha256": "6a7e1b76d054d70f15f7822d867804995ab444ad0fafff0e242f4f06e11234dd"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          409,
+          "queue_commit"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__queue_commit__nominal__seed409_events.csv",
+        "sha256": "7de0175a998afb24efddb6f5d163a3e63d412ea1cbeb124e9082d35e57ec6eff"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          400,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed400_events.csv",
+        "sha256": "4f33f1ab65167805c32a36a38b40d2f1af4284d475bbd433d021878d5cb5ba47"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          401,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed401_events.csv",
+        "sha256": "4b9d3a881118b96aabcd27b4ad534ba852bb117c872adcf9a1a39cfea2b9b222"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          402,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed402_events.csv",
+        "sha256": "d39288ee015797b93c7b6a50af52231fd55e3d16b16b35457e25db8a22d5491d"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          403,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed403_events.csv",
+        "sha256": "ece790a6d3ba9ccf9327cc24e02513a92b1ce465027b3baaf19eea5200fee0f4"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          404,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed404_events.csv",
+        "sha256": "5048823642b0d41abbff40662a9ceb23595d7725855670fbf28477beeeb851f4"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          405,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed405_events.csv",
+        "sha256": "9a85812f8e294cdbdedcce74f700f771a663809b23a2805c9d75bc5f2c424045"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          406,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed406_events.csv",
+        "sha256": "f68924b749b7f0952e8d77e28eb1695a8e99b83b89030474a80a576126bcbfc6"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          407,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed407_events.csv",
+        "sha256": "38382cde93ef22d17d2480168487c5b8722ea40297585677feec42413bb804bd"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          408,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed408_events.csv",
+        "sha256": "1cfd6c3979a075aea82d38c98a4d8c2ac3f7d6ed54be5eed79a8883a85857980"
+      },
+      {
+        "key": [
+          "robot_disturbed",
+          409,
+          "replan_each_leg"
+        ],
+        "path": "out/adaptive_horizon_2026-09-09_robot_disturbed/runs/robot_disturbed__adaptive_mission__replan_each_leg__nominal__seed409_events.csv",
+        "sha256": "ba5f973c3443127264ccdd480fe00f82bb41a0d5e0c32a5f00c185ad93a8e582"
+      }
+    ]
+  },
+  "snapshot_coverage": {
+    "minimum": 1.0,
+    "maximum": 1.0
+  },
+  "metric_definitions": {
+    "queued_route_assignment_fraction": "goal_started snapshots with remaining queued points / valid snapshots",
+    "route_staleness_ratio_mean": "mean remaining nominal route time / target stale timeout across valid goal_started snapshots; zero when no route remains",
+    "route_staleness_ratio_exceedance_fraction": "valid goal_started snapshots where remaining nominal route time exceeds target stale timeout / valid snapshots",
+    "queued_route_staleness_ratio_mean": "conditional mean ratio among snapshots with remaining queued points; descriptive only"
+  },
+  "artifacts": {
+    "queue_staleness_by_run.csv": "88d9f266dfb03165780baf9bdc37ec065e63c5c0ae5c711b431dd35b707ce638",
+    "queue_staleness_effects.csv": "374a7dad9ca850da46b538ef119399fa1c45dcea33775da9278326af73206abe"
+  }
+}

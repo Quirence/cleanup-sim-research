@@ -29,5 +29,27 @@
     "summary.csv": "3b71c75b4ea2a85b5549e580ecbb87f2c5584444d62619e7f9fffae7a0b31fa1",
     "paired_effects.csv": "c2fbef9a192a6f4038da45d62ac59a8a26bd44d711265b239101b0c9a88aef2d",
     "analysis_report.json": "d19b9172e46c4137bd01c7673536ad5edcf6eab20dbc8b97dd0043c5aec3d2ab"
+  },
+  "post_hoc_queue_staleness_audit": {
+    "status": "post_hoc_diagnostic_from_prespecified_event_fields",
+    "analysis_provenance": {
+      "provenance_id": "40b8f43cf5ef23ad29d80f0712aa6e4dcb7db161a15d48b209791c627bd5a6ec",
+      "git_commit_full": "6398d8661b0e97e3b26616591df7e46bc5155f96",
+      "source_sha256": "9ec00812b35d39ef4f92e0c4a286a8946034b903200e80960dc527dbbfac835c",
+      "environment_sha256": "d7d6ec05229d2b30aba071f56047beb17ff4b5e39a598573816121377609fd21"
+    },
+    "raw_event_artifacts": {
+      "count": 80,
+      "all_manifest_hashes_verified": true,
+      "snapshot_coverage": {
+        "minimum": 1.0,
+        "maximum": 1.0
+      }
+    },
+    "compact_artifact_sha256_before_repository_copy": {
+      "queue_staleness_by_run.csv": "88d9f266dfb03165780baf9bdc37ec065e63c5c0ae5c711b431dd35b707ce638",
+      "queue_staleness_effects.csv": "374a7dad9ca850da46b538ef119399fa1c45dcea33775da9278326af73206abe",
+      "queue_staleness_audit.json": "c770777aa21f575a4663a93a5babd08bfb163a9d7ee4f832d73af560cf07d8d8"
+    }
   }
 }
