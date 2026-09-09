@@ -85,7 +85,18 @@ def main() -> None:
     diagnostics = pd.DataFrame(rows).sort_values(KEY_COLUMNS).reset_index(drop=True)
     if not diagnostics["regime_route_snapshot_coverage"].eq(1.0).all():
         raise ValueError("Committed-route regime snapshots are incomplete")
-    enriched = summary.merge(diagnostics, on=KEY_COLUMNS, validate="one_to_one")
+    new_columns = [
+        "regime_route_snapshot_coverage",
+        "queued_route_assignment_fraction",
+        "route_staleness_ratio_mean",
+        "route_staleness_ratio_exceedance_fraction",
+        "queued_route_staleness_ratio_mean",
+    ]
+    enriched = summary.merge(
+        diagnostics[[*KEY_COLUMNS, *new_columns]],
+        on=KEY_COLUMNS,
+        validate="one_to_one",
+    )
     effects, report = analyze_horizon_results(enriched)
     queue_effects = effects.loc[effects["metric"].isin(QUEUE_DIAGNOSTIC_METRICS)].copy()
 
