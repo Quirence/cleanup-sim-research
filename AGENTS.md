@@ -38,5 +38,7 @@ documents. Dated reports preserve evidence and history but are not active plans.
   to the colleague. Do not resume it unless requested. It does not block drafting,
   development experiments, or confirmation on independently verified new data.
   Keep the uncertain historical series diagnostic.
+- The colleague's bounded task, inputs, and completion criteria are in
+  `docs/project/colleague_historical_reproducibility_task_2026-09-09.md`.
 - The active test suite covers only `cleanup_sim_v2`. Legacy v1 tests are kept
   in Git history and in branch `archive/belief-hypotheses-20260813`.
