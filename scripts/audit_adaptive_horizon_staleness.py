@@ -14,7 +14,12 @@ from cleanup_sim_v2.adaptive_horizon import (
     summarize_horizon_events,
     validate_horizon_matrix,
 )
-from cleanup_sim_v2.provenance import file_sha256
+from cleanup_sim_v2.provenance import (
+    assert_provenance_unchanged,
+    capture_provenance,
+    file_sha256,
+    summary_provenance,
+)
 
 
 KEY_COLUMNS = ["scenario", "seed", "horizon_variant"]
@@ -34,6 +39,10 @@ def main() -> None:
     if args.out_dir.exists() and any(args.out_dir.iterdir()):
         raise FileExistsError("Use a new audit output directory; existing evidence is immutable")
     args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    provenance = capture_provenance()
+    if provenance["git_dirty"]:
+        raise RuntimeError("Adaptive horizon audit requires a clean Git worktree")
 
     summary = pd.read_csv(args.summary)
     validate_horizon_matrix(summary)
@@ -107,6 +116,7 @@ def main() -> None:
     _write_json(args.out_dir / "queue_staleness_audit.json", {
         "status": "post_hoc_diagnostic_from_prespecified_event_fields",
         "does_not_change_primary_decision": report["decision"] == "ambiguous",
+        "analysis_provenance": summary_provenance(provenance),
         "input_summary": {
             "path": args.summary.as_posix(),
             "sha256": file_sha256(args.summary),
@@ -132,6 +142,7 @@ def main() -> None:
             effects_path.name: file_sha256(effects_path),
         },
     })
+    assert_provenance_unchanged(provenance)
     print(f"validated_runs={len(diagnostics)}; primary_decision={report['decision']}; out={args.out_dir}")
 
 
