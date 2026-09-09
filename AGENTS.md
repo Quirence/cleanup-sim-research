@@ -34,5 +34,9 @@ documents. Dated reports preserve evidence and history but are not active plans.
 - The colleague's post-change CSV records a dirty source tree; a local control
   did not reproduce one row. Resolve provenance/environment before using those
   data for final claims. Do not overwrite the original CSV to match a rerun.
+- User decision on 2026-09-08: historical discrepancy investigation is deferred
+  to the colleague. Do not resume it unless requested. It does not block drafting,
+  development experiments, or confirmation on independently verified new data.
+  Keep the uncertain historical series diagnostic.
 - The active test suite covers only `cleanup_sim_v2`. Legacy v1 tests are kept
   in Git history and in branch `archive/belief-hypotheses-20260813`.
