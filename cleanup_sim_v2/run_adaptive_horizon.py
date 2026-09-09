@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .adaptive_horizon import HORIZON_VARIANTS, analyze_horizon_results
+from .adaptive_horizon import HORIZON_VARIANTS, analyze_horizon_results, summarize_horizon_events
 from .config import scenario_config
 from .io import config_hash, save_run
 from .provenance import (
@@ -36,22 +36,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--resume", action="store_true")
     return parser
-
-
-def _event_metrics(events: pd.DataFrame) -> dict[str, int]:
-    starts = events[events["event"] == "goal_started"]
-    completed = events[events["event"] == "goal_completed"]
-
-    def total(frame: pd.DataFrame, column: str) -> int:
-        if column not in frame:
-            return 0
-        return int(pd.to_numeric(frame[column], errors="coerce").fillna(0).sum())
-
-    return {
-        "selector_invocations": total(starts, "adaptive_selector_invoked"),
-        "route_continuations": total(starts, "adaptive_route_continuation"),
-        "queue_discarded_points": total(completed, "adaptive_queue_discarded_points"),
-    }
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -120,7 +104,7 @@ def main() -> None:
                     "complete_cleanup": int(result.summary["collected"] == cfg.world.n_debris),
                     "config_hash": config_hash(cfg.to_dict()),
                     "runner": "run_adaptive_horizon",
-                    **_event_metrics(result.events),
+                    **summarize_horizon_events(result.events),
                     **summary_provenance(provenance),
                 })
                 summaries.append(result.summary)

@@ -30,6 +30,62 @@ EFFECT_METRICS = (
     "queue_discarded_points",
 )
 
+# These diagnostics are computed from goal_started regime snapshots.  They are
+# optional so summaries produced by the preregistered pilot commit remain valid.
+QUEUE_DIAGNOSTIC_METRICS = (
+    "queued_route_assignment_fraction",
+    "route_staleness_ratio_mean",
+    "route_staleness_ratio_exceedance_fraction",
+)
+
+
+def summarize_horizon_events(events: pd.DataFrame) -> dict[str, float | int]:
+    """Summarize execution-horizon counters and committed-route exposure."""
+    starts = events.loc[events["event"] == "goal_started"]
+    completed = events.loc[events["event"] == "goal_completed"]
+
+    def total(frame: pd.DataFrame, column: str) -> int:
+        if column not in frame:
+            return 0
+        return int(pd.to_numeric(frame[column], errors="coerce").fillna(0).sum())
+
+    result: dict[str, float | int] = {
+        "selector_invocations": total(starts, "adaptive_selector_invoked"),
+        "route_continuations": total(starts, "adaptive_route_continuation"),
+        "queue_discarded_points": total(completed, "adaptive_queue_discarded_points"),
+    }
+    if starts.empty or not {
+        "regime_queued_route_points",
+        "regime_route_staleness_ratio",
+    }.issubset(starts.columns):
+        result.update({
+            "regime_route_snapshot_coverage": math.nan,
+            "queued_route_assignment_fraction": math.nan,
+            "route_staleness_ratio_mean": math.nan,
+            "route_staleness_ratio_exceedance_fraction": math.nan,
+            "queued_route_staleness_ratio_mean": math.nan,
+        })
+        return result
+
+    points = pd.to_numeric(starts["regime_queued_route_points"], errors="coerce")
+    staleness = pd.to_numeric(starts["regime_route_staleness_ratio"], errors="coerce")
+    valid = points.notna() & staleness.notna()
+    queued = valid & points.gt(0)
+    valid_count = int(valid.sum())
+    queued_count = int(queued.sum())
+    result.update({
+        "regime_route_snapshot_coverage": valid_count / len(starts),
+        "queued_route_assignment_fraction": queued_count / valid_count if valid_count else math.nan,
+        "route_staleness_ratio_mean": float(staleness.loc[valid].mean()) if valid_count else math.nan,
+        "route_staleness_ratio_exceedance_fraction": (
+            float(staleness.loc[valid].gt(1.0).mean()) if valid_count else math.nan
+        ),
+        "queued_route_staleness_ratio_mean": (
+            float(staleness.loc[queued].mean()) if queued_count else math.nan
+        ),
+    })
+    return result
+
 
 def _analysis_seed(scope: str, metric: str) -> int:
     return int(zlib.crc32(f"adaptive-horizon|{scope}|{metric}".encode("utf-8")) & 0xFFFFFFFF)
@@ -60,7 +116,12 @@ def analyze_horizon_results(summary: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     validate_horizon_matrix(summary)
     rows: list[dict] = []
 
-    for metric in EFFECT_METRICS:
+    optional_metrics = tuple(metric for metric in QUEUE_DIAGNOSTIC_METRICS if metric in summary)
+    for metric in optional_metrics:
+        if summary[metric].isna().any():
+            raise ValueError(f"Optional horizon metric is incomplete: {metric}")
+
+    for metric in (*EFFECT_METRICS, *optional_metrics):
         paired = _paired(summary, metric).dropna(subset=list(HORIZON_VARIANTS))
         for scenario in sorted(paired["scenario"].unique()):
             block = paired[paired["scenario"] == scenario]
