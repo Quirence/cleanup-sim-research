@@ -2000,11 +2000,23 @@ def choose_goal(
     return GoalDecision(state.active_goal.copy(), "active", "active_entropy_density_score", 0.0)
 
 
-def pop_route_goal_if_arrived(state: PlannerState, pos: np.ndarray, tolerance_m: float, targets: TargetQueue) -> None:
+def pop_route_goal_if_arrived(
+    state: PlannerState,
+    pos: np.ndarray,
+    tolerance_m: float,
+    targets: TargetQueue,
+    *,
+    adaptive_replan_after_each_leg: bool = False,
+) -> int:
+    discarded_points = 0
     if state.current_route and np.linalg.norm(state.current_route[0] - pos) <= tolerance_m:
+        adaptive_route = "adaptive_selected_policy" in state.current_route_details
         if state.current_route_mode == "route":
             targets.remove_near(pos, tolerance_m * 2.5)
         state.current_route.pop(0)
+        if adaptive_replan_after_each_leg and adaptive_route:
+            discarded_points = len(state.current_route)
+            state.current_route = None
         if not state.current_route:
             state.current_route = None
             state.current_route_mode = "route"
@@ -2012,3 +2024,4 @@ def pop_route_goal_if_arrived(state: PlannerState, pos: np.ndarray, tolerance_m:
             state.current_route_details = {}
     if state.oracle_route and np.linalg.norm(state.oracle_route[0] - pos) <= tolerance_m:
         state.oracle_route.pop(0)
+    return discarded_points

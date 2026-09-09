@@ -572,6 +572,7 @@ def run_simulation(config: RunConfig) -> RunResult:
                 "expected_value": float(current_goal_expected_value),
             }
             row.update(current_goal_details)
+            row["adaptive_queue_discarded_points"] = 0
             events.append(row)
             if np.linalg.norm(pos - np.array(config.world.depot, dtype=float)) <= config.platform.arrival_tolerance_m and bin_load_kg > 0:
                 unload_events += 1
@@ -586,7 +587,14 @@ def run_simulation(config: RunConfig) -> RunResult:
                     }
                 )
                 bin_load_kg = 0.0
-            pop_route_goal_if_arrived(planner_state, pos, config.platform.arrival_tolerance_m, target_queue)
+            discarded_points = pop_route_goal_if_arrived(
+                planner_state,
+                pos,
+                config.platform.arrival_tolerance_m,
+                target_queue,
+                adaptive_replan_after_each_leg=config.planner.adaptive_replan_after_each_leg,
+            )
+            row["adaptive_queue_discarded_points"] = discarded_points
             current_goal = None
 
         collected_count = int(field.collected.sum())

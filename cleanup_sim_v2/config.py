@@ -230,6 +230,10 @@ class PlannerConfig:
     adaptive_route_enabled: bool = True
     adaptive_orienteering_enabled: bool = True
     adaptive_local_exploit_enabled: bool = True
+    # False preserves an accepted confirmed/local route until its queue is
+    # exhausted or invalidated. True executes one leg and invokes the adaptive
+    # selector again with the newly observed state.
+    adaptive_replan_after_each_leg: bool = False
     adaptive_hysteresis_enabled: bool = True
     adaptive_switch_margin: float = 0.12
     adaptive_route_min_confirmed: int = 6

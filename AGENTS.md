@@ -17,6 +17,9 @@ documents. Dated reports preserve evidence and history but are not active plans.
 - Seeds 100-129 were already used in the 3840-run budget calibration. They
   cannot serve as an untouched final sample after inspecting those results.
 - Budget 3000 m is a diagnostic candidate, not a frozen universal setting.
+- User decision on 2026-09-09: final collected ratio at a common mission budget
+  is the primary performance metric. Report remaining objects and complete-cleanup
+  frequency with it; path-normalized AUC is secondary mission-tempo evidence.
 
 ## Workflow
 
