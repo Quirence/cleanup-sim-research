@@ -1,0 +1,33 @@
+{
+  "experiment_commit": "519109d6cab55d8498c1318b6f0971b265ed5e58",
+  "git_dirty": false,
+  "provenance_id": "a620034d695817d25823357ab58e968cd004425930ee1b4c7a34b2a3ae6b9645",
+  "source_sha256": "b977c6541aa5f9caee0278eeb70eb4d285e7f1d2336771b0c8d708a2ee0f0f18",
+  "environment_sha256": "d7d6ec05229d2b30aba071f56047beb17ff4b5e39a598573816121377609fd21",
+  "matrix": {
+    "rows": 80,
+    "scenarios": 4,
+    "seeds": 10,
+    "variants": 2,
+    "stop_reason_path_budget_rows": 80
+  },
+  "raw_artifact_audit": {
+    "run_manifests": 80,
+    "artifacts": 480,
+    "missing_or_hash_mismatch": 0,
+    "distinct_provenance_ids": 1,
+    "distinct_commits": 1,
+    "dirty_manifests": 0
+  },
+  "input_summary_sha256": {
+    "static_calm": "93843412bf423af657d605eacfc4c828fe031a4a6afd3862cb598576b06c4d2ec",
+    "weak_drift": "f27f33ebdc87c932b69483cddd1ab6749319594a12a4103843c1e7cd067082de",
+    "strong_drift": "99a549b881e713d6f3de9d7d0bbf5dab0f907d078052aee288286f562c963840",
+    "robot_disturbed": "a6ef86c07eb5efdf76a51bdb7b0d8a7800c5febbd5c9442c9df69e267026893a"
+  },
+  "compact_artifact_sha256_before_repository_copy": {
+    "summary.csv": "3b71c75b4ea2a85b5549e580ecbb87f2c5584444d62619e7f9fffae7a0b31fa1",
+    "paired_effects.csv": "c2fbef9a192a6f4038da45d62ac59a8a26bd44d711265b239101b0c9a88aef2d",
+    "analysis_report.json": "d19b9172e46c4137bd01c7673536ad5edcf6eab20dbc8b97dd0043c5aec3d2ab"
+  }
+}

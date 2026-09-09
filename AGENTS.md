@@ -16,6 +16,9 @@ documents. Dated reports preserve evidence and history but are not active plans.
   NMHE/NMPC, or mathematically optimal oracle.
 - Seeds 100-129 were already used in the 3840-run budget calibration. They
   cannot serve as an untouched final sample after inspecting those results.
+- Seeds 400-409 were used in the adaptive execution-horizon pilot and are also
+  development seeds. The pilot was ambiguous on final collected ratio; keep
+  `queue_commit` as the default until the documented follow-up decision.
 - Budget 3000 m is a diagnostic candidate, not a frozen universal setting.
 - User decision on 2026-09-09: final collected ratio at a common mission budget
   is the primary performance metric. Report remaining objects and complete-cleanup

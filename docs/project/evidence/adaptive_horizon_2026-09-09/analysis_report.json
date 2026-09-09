@@ -1,0 +1,58 @@
+{
+  "comparison": "replan_each_leg_minus_queue_commit",
+  "primary_metric": "collected_ratio_at_common_path_budget",
+  "secondary_completion_metrics": [
+    "remaining_count",
+    "complete_cleanup"
+  ],
+  "one_object_ratio": 0.006666666666666667,
+  "decision": "ambiguous",
+  "decision_rationale": "primary_effect_uncertain_small_or_scenario_dependent",
+  "decision_rule": {
+    "minimum_mean_effect": "one initial debris object",
+    "overall_ci_must_exclude_zero": true,
+    "no_scenario_mean_loss_at_least_one_object": true
+  },
+  "overall_primary_effect": {
+    "paired_runs": 10,
+    "queue_commit_mean": 0.6585,
+    "replan_each_leg_mean": 0.7013333333333333,
+    "mean_difference_replan_minus_queue": 0.042833333333333314,
+    "ci95_low": -0.00916666666666669,
+    "ci95_high": 0.09283749999999961,
+    "positive_pairs": 6,
+    "tied_pairs": 0,
+    "negative_pairs": 4
+  },
+  "scenario_primary_effects": [
+    {
+      "scenario": "robot_disturbed",
+      "paired_runs": 10,
+      "mean_difference_replan_minus_queue": 0.029999999999999978,
+      "ci95_low": -0.11600000000000002,
+      "ci95_high": 0.154
+    },
+    {
+      "scenario": "static_calm",
+      "paired_runs": 10,
+      "mean_difference_replan_minus_queue": 0.056666666666666685,
+      "ci95_low": 0.001333333333333353,
+      "ci95_high": 0.11800000000000002
+    },
+    {
+      "scenario": "strong_drift",
+      "paired_runs": 10,
+      "mean_difference_replan_minus_queue": 0.03399999999999999,
+      "ci95_low": -0.03066666666666664,
+      "ci95_high": 0.11866666666666666
+    },
+    {
+      "scenario": "weak_drift",
+      "paired_runs": 10,
+      "mean_difference_replan_minus_queue": 0.05066666666666668,
+      "ci95_low": -0.0993333333333333,
+      "ci95_high": 0.19133333333333336
+    }
+  ],
+  "interpretation_note": "AUC and efficiency diagnostics are secondary and cannot overturn a clear final-collection result. An ambiguous result requires a documented user decision before changing the default horizon."
+}
